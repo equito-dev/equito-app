@@ -40,7 +40,7 @@ export async function collect(d: CollectDeps): Promise<{ tokens: number; rows: n
   const assets = (await rh.assets()).filter((a): a is Asset & { address: string } => a.address !== null);
   const failed: string[] = [];
   const rows = (
-    await pool(assets, d.concurrency ?? 4, async (asset): Promise<StatsRow | null> => {
+    await pool(assets, d.concurrency ?? 2, async (asset): Promise<StatsRow | null> => {
       try {
         const s = await statsFor(rh, chain, asset);
         return {
