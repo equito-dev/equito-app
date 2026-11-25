@@ -6,6 +6,7 @@ import { ERC20, FACTORY, FACTORY_ABI, POOL_ABI, QUOTER, QUOTER_ABI, ROUTER, ROUT
 
 const NVDA = "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC";
 const POOL = "0x00000000000000000000000000000000000000a5";
+const EMPTY_POOL = "0x00000000000000000000000000000000000000e7"; // exists, never funded: extreme price, no liquidity
 const WALLET = "0x1111111111111111111111111111111111111111";
 const ZERO = "0x0000000000000000000000000000000000000000";
 const E18 = 10n ** 18n;
@@ -17,7 +18,7 @@ const SQRT = BigInt(Math.round(Math.sqrt(ratio) * 2 ** 96));
 
 const ABIS: { abi: Abi; match: (to: string) => boolean }[] = [
   { abi: FACTORY_ABI as Abi, match: (to) => to === FACTORY.toLowerCase() },
-  { abi: POOL_ABI as Abi, match: (to) => to === POOL.toLowerCase() },
+  { abi: POOL_ABI as Abi, match: (to) => to === POOL.toLowerCase() || to === EMPTY_POOL.toLowerCase() },
   { abi: QUOTER_ABI as Abi, match: (to) => to === QUOTER.toLowerCase() },
   { abi: ERC20 as Abi, match: () => true },
 ];
@@ -28,10 +29,10 @@ function answer(to: string, data: `0x${string}`): `0x${string}` | null {
   const fn = call.functionName as string;
   const args = (call.args ?? []) as any[];
   const enc = (result: unknown) => encodeFunctionResult({ abi, functionName: fn, result } as any);
-  if (fn === "getPool") return enc(args[2] === 500 ? POOL : ZERO);
-  if (fn === "slot0") return enc([SQRT, 0, 0, 0, 0, 0, true]);
+  if (fn === "getPool") return enc(args[2] === 500 ? POOL : args[2] === 3000 ? EMPTY_POOL : ZERO);
+  if (fn === "slot0") return enc([to === EMPTY_POOL.toLowerCase() ? 4295128740n : SQRT, 0, 0, 0, 0, 0, true]);
   if (fn === "token0") return enc(USDG);
-  if (fn === "liquidity") return enc(123456789n);
+  if (fn === "liquidity") return enc(to === EMPTY_POOL.toLowerCase() ? 0n : 123456789n);
   if (fn === "quoteExactInputSingle") {
     const p = args[0];
     if (p.fee !== 500) return null; // no such pool: QuoterV2 reverts
@@ -99,10 +100,13 @@ test("GET /v1/stats gives the DEX price, the premium over Robinhood's price, poo
   assert.equal(b.premiumPct, 0.33); // 152 / 151.5 - 1
   assert.equal(b.supply, 1000);
   assert.equal(b.marketCapUsd, 151500);
-  assert.equal(b.pools.length, 1);
+  assert.equal(b.pools.length, 2);
   assert.equal(b.pools[0].fee, 500);
-  assert.equal(b.liquidityUsd, 30200); // 15,000 USDG + 100 NVDA x 152
-  assert.deepEqual(rpcBatches, [6, 5]); // two round trips
+  // The never-funded pool keeps no price (its tick would say something absurd) and adds nothing to depth.
+  assert.equal(b.pools[1].fee, 3000);
+  assert.equal(b.pools[1].dexPrice, null);
+  assert.equal(b.liquidityUsd, 30150); // 15,000 USDG + 100 NVDA at Robinhood's 151.5
+  assert.deepEqual(rpcBatches, [6, 10]); // two round trips
 });
 
 test("GET /v1/quote buys and sells through the best pool and reports impact and premium", async () => {
@@ -191,4 +195,21 @@ test("a node that answers 429 is skipped: the same batch goes to the next node i
   assert.equal(res.status, 200);
   assert.equal(((await res.json()) as any).dexPrice, 152);
   assert.ok(busyHits >= 1);
+});
+
+test("a batch where some calls hit a rate limit is retried elsewhere, never read as 'no pool'", async () => {
+  const { f } = fakeFetch();
+  let partialHits = 0;
+  const partial = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) === "https://rpc.partial") {
+      partialHits++;
+      const batch = JSON.parse(String(init!.body)) as { id: number }[];
+      // first call fine, the rest refused for capacity (the shape some providers use)
+      return Response.json(batch.map((c, i) => i === 0 ? { jsonrpc: "2.0", id: c.id, result: "0x" + "0".repeat(63) + "1" } : { jsonrpc: "2.0", id: c.id, error: { code: -32005, message: "request rate exceeded" } }));
+    }
+    return f(input, init);
+  }) as typeof fetch;
+  const b = (await (await app(partial)(get("/v1/stats/NVDA"), { RPC_URLS: "https://rpc.partial,https://rpc.test" })).json()) as any;
+  assert.equal(b.dexPrice, 152);
+  assert.ok(partialHits >= 1);
 });

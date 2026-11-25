@@ -55,8 +55,14 @@ export function priceFromSqrt(sqrtPriceX96: bigint, tokenIsToken0: boolean, toke
   return tokenIsToken0 ? ratio * 10 ** (tokenDecimals - USDG_DECIMALS) : (1 / ratio) * 10 ** (tokenDecimals - USDG_DECIMALS);
 }
 
+// A pool's price counts only when the pool really trades: in-range liquidity, both tokens inside, and (when Robinhood's
+// price is known) within 10x of it. An empty or never-funded pool sits at an extreme tick and would report a price like
+// 3e50 (seen live 2026-11-26), so its price is dropped and its depth is valued at Robinhood's price instead.
+const PRICE_BAND = 10;
+
 // Two batched rounds: supply, decimals and every fee tier's pool; then each pool's price and balances.
-export async function readTokenFacts(chain: Chain, token: string): Promise<TokenFacts> {
+// `refPrice`: Robinhood's price for one token, used to sanity-check pool prices and to value pool depth.
+export async function readTokenFacts(chain: Chain, token: string, refPrice: number | null = null): Promise<TokenFacts> {
   const first = await chain.calls([
     { to: token, abi: ERC20, functionName: "decimals" },
     { to: token, abi: ERC20, functionName: "totalSupply" },
@@ -84,7 +90,11 @@ export async function readTokenFacts(chain: Chain, token: string): Promise<Token
     const price = sqrt && typeof token0 === "string" ? priceFromSqrt(sqrt, same(token0, token), decimals) : NaN;
     const tokenBalance = typeof tokBal === "bigint" ? whole(tokBal, decimals) : 0;
     const usdgBalance = typeof usdBal === "bigint" ? whole(usdBal, USDG_DECIMALS) : 0;
-    const dexPrice = Number.isFinite(price) && price > 0 ? price : null;
+    const active = typeof liq === "bigint" ? liq : 0n;
+    const funded = active > 0n && tokenBalance > 0 && usdgBalance > 0;
+    const sane = Number.isFinite(price) && price > 0 && (refPrice === null || refPrice <= 0 || (price / refPrice < PRICE_BAND && refPrice / price < PRICE_BAND));
+    const dexPrice = funded && sane ? price : null;
+    const valueAt = refPrice && refPrice > 0 ? refPrice : dexPrice;
     return {
       address: p.address,
       fee: p.fee,
@@ -92,8 +102,8 @@ export async function readTokenFacts(chain: Chain, token: string): Promise<Token
       dexPrice,
       tokenBalance,
       usdgBalance,
-      liquidityUsd: dexPrice !== null ? usdgBalance + tokenBalance * dexPrice : null,
-      activeLiquidity: typeof liq === "bigint" ? String(liq) : "0",
+      liquidityUsd: valueAt !== null ? usdgBalance + tokenBalance * valueAt : null,
+      activeLiquidity: String(active),
     };
   });
   // Deepest pool first: that is the price a real trade meets.

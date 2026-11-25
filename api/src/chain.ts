@@ -21,21 +21,27 @@ let rotation = 0;
 export class Chain {
   private urls: string[];
   private f: typeof fetch;
-  constructor(urls: string | string[], f: typeof fetch) {
+  private retryWaitMs: number;
+  constructor(urls: string | string[], f: typeof fetch, retryWaitMs = 1500) {
     this.urls = Array.isArray(urls) ? (urls.length ? urls : [PUBLIC_RPC]) : [urls];
     this.f = f;
+    this.retryWaitMs = retryWaitMs;
   }
 
   // Each batch starts at the next node in turn; on a 429 or an outage the same batch moves on to the next node.
   private async batch(payload: { jsonrpc: "2.0"; id: number; method: string; params: unknown[] }[]): Promise<Map<number, unknown>> {
     const start = rotation++ % this.urls.length;
     let last: ApiError | null = null;
-    for (let i = 0; i < this.urls.length; i++) {
-      try {
-        return await this.batchOn(this.urls[(start + i) % this.urls.length], payload);
-      } catch (err) {
-        if (!(err instanceof ApiError)) throw err;
-        last = err;
+    // Every node once; if all were busy, one more round after a short pause.
+    for (let round = 0; round < 2; round++) {
+      if (round > 0) await new Promise<void>((r) => setTimeout(r, this.retryWaitMs));
+      for (let i = 0; i < this.urls.length; i++) {
+        try {
+          return await this.batchOn(this.urls[(start + i) % this.urls.length], payload);
+        } catch (err) {
+          if (!(err instanceof ApiError)) throw err;
+          last = err;
+        }
       }
     }
     throw last ?? new ApiError(502, "chain_unavailable", "Robinhood Chain could not be read just now. Try again shortly.");
@@ -60,6 +66,13 @@ export class Chain {
       if (code === 429) throw new ApiError(503, "chain_busy", "The Robinhood Chain node is rate-limiting us right now. Try again in a minute.");
       throw new ApiError(502, "chain_unavailable", "The chain node answered something we could not read.");
     }
+    // Some nodes answer a busy moment inside the batch: most calls fine, a few with a rate-limit error. Those must not
+    // read as "reverted" (that turned real pools into "no pool" on 2026-11-26), so the whole batch counts as busy.
+    const limited = (body as { error?: { code?: unknown; message?: unknown } }[]).some((r) => {
+      const e = r?.error;
+      return !!e && (e.code === 429 || e.code === -32005 || /rate|limit|too many|capacity|exceed|throttl/i.test(String(e.message ?? "")));
+    });
+    if (limited) throw new ApiError(503, "chain_busy", "The Robinhood Chain node is rate-limiting us right now. Try again in a minute.");
     const out = new Map<number, unknown>();
     for (const r of body as { id?: unknown; result?: unknown; error?: unknown }[]) {
       if (typeof r?.id === "number" && r.error === undefined) out.set(r.id, r.result);

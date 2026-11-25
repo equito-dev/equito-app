@@ -45,7 +45,9 @@ export async function getStats(rh: Robinhood, chain: Chain, rawSymbol: string, d
 
 // The numbers behind /v1/stats/{symbol}; the collector stores the same shape for every token.
 export async function statsFor(rh: Robinhood, chain: Chain, asset: Asset & { address: string }) {
-  const [facts, mid] = await Promise.all([readTokenFacts(chain, asset.address), tokenMid(rh, asset)]);
+  // Robinhood first: its price checks every pool price and values pool depth.
+  const mid = await tokenMid(rh, asset);
+  const facts = await readTokenFacts(chain, asset.address, mid);
   const main = facts.pools.find((p) => p.dexPrice !== null) ?? null;
   return {
     symbol: asset.symbol,
@@ -80,7 +82,9 @@ function parseTrade(input: { symbol?: unknown; side?: unknown; amount?: unknown 
 async function quoteFor(rh: Robinhood, chain: Chain, input: { symbol?: unknown; side?: unknown; amount?: unknown }) {
   const t = parseTrade(input);
   const asset = await tokenOf(rh, t.symbol);
-  const [facts, mid] = await Promise.all([readTokenFacts(chain, asset.address), tokenMid(rh, asset)]);
+  // Robinhood first: its price checks every pool price and values pool depth.
+  const mid = await tokenMid(rh, asset);
+  const facts = await readTokenFacts(chain, asset.address, mid);
   const live = facts.pools.filter((p) => p.dexPrice !== null);
   if (live.length === 0) throw new ApiError(404, "no_pool", `${asset.symbol} has no Uniswap pool with USDG yet.`);
   const buying = t.side === "buy";
