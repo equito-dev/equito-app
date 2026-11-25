@@ -1,0 +1,16 @@
+# Local only, never on GitHub (owner, 2026-11-25): plans, research notes, copied Reinkeep code
+PLAN.md
+DATA-SOURCES.md
+from-reinkeep/
+
+# Build and tooling
+node_modules/
+dist/
+.wrangler/
+
+# Secrets
+.dev.vars
+.env*
+
+# Flow originals (2K), kept local; the site ships the webp in site/public/media
+site/flow-src/
