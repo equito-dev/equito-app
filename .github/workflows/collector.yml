@@ -1,0 +1,37 @@
+name: collector
+
+# Every stock token's Robinhood price and Uniswap v3 pools, sent to the API's D1 database (POST /internal/snapshot).
+# Feeds GET /v1/stats (all tokens), GET /v1/history (candles) and the fallback when the chain cannot be read live.
+# GitHub often starts scheduled runs late (about hourly in practice); every run stands on its own, so nothing is lost.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# One run at a time.
+concurrency:
+  group: collector
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --omit=dev --ignore-scripts
+      - name: Run the collector
+        run: node collector/run.ts
+        env:
+          INGEST_KEY: ${{ secrets.INGEST_KEY }}
+          RPC_URLS: ${{ secrets.RPC_URLS }}
+          API_BASE: ${{ vars.API_BASE }}

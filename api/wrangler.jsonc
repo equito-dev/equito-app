@@ -1,0 +1,34 @@
+// Equito API Worker. Run wrangler from this folder (equito/api).
+// Secrets, set by the owner (never in this file):
+//   npx wrangler secret put PRIORS_API_KEY   the Priors facilitator merchant key: verifies and settles x402 payments.
+//   npx wrangler secret put RPC_URLS         private Robinhood Chain nodes, comma separated (Chainstack, Alchemy); tried in
+//                                            turn on a 429. The public node is always the last resort.
+//   npx wrangler secret put INGEST_KEY       shared with the GitHub Actions collector; guards POST /internal/snapshot.
+// Plain vars, under "vars" below:
+//   X402_PAY_TO        the wallet (0x...) that receives paid calls; must be the wallet registered as the Priors merchant.
+//   FACILITATOR_URL    optional, default https://facilitator.priors.trade
+//   HOLDER_TOKEN / HOLDER_MIN   set after the $EQUITO launch: holders of HOLDER_MIN base units pay half.
+// Without X402_PAY_TO or PRIORS_API_KEY the 50 free calls still work; past them the API answers 503 payment_not_configured.
+{
+  "name": "equito-api",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  // TEMPORARY (2026-11-25): *.workers.dev is blocked by networks in Indonesia, so the API is tested on a subdomain of
+  // the old reinkeep.xyz zone. Switch to api.equito.pro once that domain is on Cloudflare, then drop this route.
+  "routes": [{ "pattern": "equito-api.reinkeep.xyz", "custom_domain": true }],
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "vars": {},
+
+  // Market data from the collector (.github/workflows/collector.yml). Schema: migrations/*.sql
+  "d1_databases": [{ "binding": "DB", "database_name": "equito", "database_id": "7a2229a6-cd7e-475e-b40e-88b8dad25dbd", "migrations_dir": "migrations" }],
+  "durable_objects": {
+    "bindings": [
+      // Free tier: one FreeTier object per caller IP counts that IP's calls for the UTC day.
+      { "name": "FREE", "class_name": "FreeTier" }
+    ]
+  },
+  // The migration tag only ever grows; never edit or remove a tag that has been deployed.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FreeTier"] }]
+}

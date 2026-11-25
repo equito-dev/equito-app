@@ -14,3 +14,6 @@ dist/
 
 # Flow originals (2K), kept local; the site ships the webp in site/public/media
 site/flow-src/
+
+# Brand originals from Google Flow (local until the owner picks)
+brand/

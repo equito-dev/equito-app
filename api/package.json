@@ -1,0 +1,21 @@
+{
+  "name": "equito-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "wrangler dev",
+    "dev:remote": "wrangler dev --remote",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~7.0.2",
+    "wrangler": "^4.168.0"
+  },
+  "dependencies": {
+    "viem": "^2.58.6"
+  }
+}
