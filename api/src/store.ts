@@ -170,3 +170,177 @@ export async function getHistory(db: D1Like | undefined, symbol: string, url: UR
   if (cur) candles.push(cur);
   return json(200, { symbol, interval, days, count: candles.length, candles, source: "equito collector (Robinhood price, Uniswap v3 pools)" });
 }
+
+// ---- Pons launches (POST /internal/launches from the collector, GET /v1/markets) ----
+
+const ADDR = /^0x[0-9a-f]{40}$/;
+const cleanText = (v: unknown) => (typeof v === "string" && v.length <= 64 ? v : null);
+
+export function sameKeyOk(req: Request, ingestKey: string | undefined): boolean {
+  const auth = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  return !!ingestKey && sameKey(auth, ingestKey);
+}
+
+export async function postLaunches(db: D1Like | undefined, ingestKey: string | undefined, req: Request, now: () => number): Promise<Response> {
+  if (!db || !ingestKey) throw new ApiError(503, "ingest_off", "Snapshots are not set up on this server.");
+  if (!sameKeyOk(req, ingestKey)) throw new ApiError(401, "unauthorized", "Wrong or missing key.");
+  const raw = await req.text();
+  if (raw.length > 1_000_000) throw new ApiError(413, "body_too_large", "Send at most about 1 MB per chunk.");
+  let body: { launches?: unknown };
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new ApiError(400, "invalid_json", "Send JSON: { launches: [...] }.");
+  }
+  const list = (Array.isArray(body.launches) ? body.launches : [])
+    .map((l: any) => {
+      const token = typeof l?.token === "string" ? l.token.toLowerCase() : "";
+      const pool = typeof l?.pool === "string" ? l.pool.toLowerCase() : "";
+      const creator = typeof l?.creator === "string" ? l.creator.toLowerCase() : "";
+      const block = Number(l?.block);
+      const createdAt = Number(l?.createdAt);
+      if (!ADDR.test(token) || !ADDR.test(pool) || !ADDR.test(creator) || !Number.isSafeInteger(block) || !Number.isSafeInteger(createdAt)) return null;
+      return { token, pool, creator, block, createdAt, symbol: cleanText(l.symbol), name: cleanText(l.name) };
+    })
+    .filter((l): l is NonNullable<typeof l> => l !== null);
+  if (list.length === 0 || list.length > 500) throw new ApiError(400, "invalid_launches", "Send 1 to 500 launches.");
+  const stmt = db.prepare(
+    `INSERT INTO launches (token, pool, creator, block, created_at, symbol, name, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(token) DO UPDATE SET symbol = COALESCE(excluded.symbol, launches.symbol), name = COALESCE(excluded.name, launches.name)`,
+  );
+  const seen = now();
+  await db.batch(list.map((l) => stmt.bind(l.token, l.pool, l.creator, l.block, l.createdAt, l.symbol, l.name, seen)));
+  return json(200, { ok: true, launches: list.length });
+}
+
+type LaunchDb = { token: string; pool: string; creator: string; block: number; created_at: number; symbol: string | null; name: string | null };
+
+// GET /v1/markets?hours=1..168&limit=1..200: newest Pons launches, each with how many launches in the window share its
+// ticker (a reused ticker is the usual sign of a copy), plus counts per creator.
+export async function getMarkets(db: D1Like | undefined, url: URL, now: () => number): Promise<Response> {
+  if (!db) throw new ApiError(503, "data_off", "Market data is not set up on this server.");
+  const hours = Number(url.searchParams.get("hours") ?? "24");
+  const limit = Number(url.searchParams.get("limit") ?? "50");
+  if (!Number.isInteger(hours) || hours < 1 || hours > 168) throw new ApiError(400, "invalid_hours", "hours must be a whole number from 1 to 168.");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new ApiError(400, "invalid_limit", "limit must be a whole number from 1 to 200.");
+  const since = now() - hours * 3600_000;
+  const { results } = await db.prepare("SELECT * FROM launches WHERE created_at >= ? ORDER BY created_at DESC").bind(since).all<LaunchDb>();
+  const tickers = new Map<string, number>();
+  const creators = new Map<string, number>();
+  for (const r of results) {
+    if (r.symbol) tickers.set(r.symbol.toUpperCase(), (tickers.get(r.symbol.toUpperCase()) ?? 0) + 1);
+    creators.set(r.creator, (creators.get(r.creator) ?? 0) + 1);
+  }
+  const last = await db.prepare("SELECT MAX(seen_at) AS seen FROM launches").first<{ seen: number | null }>();
+  return json(200, {
+    hours,
+    total: results.length,
+    updatedAt: last?.seen ? new Date(last.seen).toISOString() : null,
+    launches: results.slice(0, limit).map((r) => ({
+      token: r.token,
+      symbol: r.symbol,
+      name: r.name,
+      pool: r.pool,
+      creator: r.creator,
+      createdAt: new Date(r.created_at).toISOString(),
+      block: r.block,
+      sameTickerInWindow: r.symbol ? tickers.get(r.symbol.toUpperCase()) ?? 1 : null,
+      creatorLaunchesInWindow: creators.get(r.creator) ?? 1,
+    })),
+    source: "Pons launcher events on Robinhood Chain",
+  });
+}
+
+// ---- GET /public/board: the website's market table and ticker tape. Free, not metered, cached 5 minutes. ----
+// The top tokens by pool depth (with a working DEX price) from the last collector run, each with up to 24 hourly
+// Robinhood prices for a sparkline. One read for the site, so visitors never spend their own free calls on it.
+export async function getBoard(db: D1Like | undefined, now: () => number): Promise<Response> {
+  if (!db) throw new ApiError(503, "data_off", "Market data is not set up on this server.");
+  const { results: top } = await db
+    .prepare("SELECT * FROM token_stats WHERE dex_price IS NOT NULL AND token_price IS NOT NULL ORDER BY liquidity_usd DESC LIMIT 12")
+    .all<StatsDb>();
+  const since = now() - 26 * 3600_000;
+  const spark = new Map<string, { ts: number; p: number }[]>();
+  if (top.length) {
+    const marks = top.map(() => "?").join(",");
+    const { results } = await db
+      .prepare(`SELECT symbol, ts, token_price FROM price_points WHERE ts >= ? AND token_price IS NOT NULL AND symbol IN (${marks}) ORDER BY ts ASC`)
+      .bind(since, ...top.map((t) => t.symbol))
+      .all<{ symbol: string; ts: number; token_price: number }>();
+    for (const r of results) {
+      const list = spark.get(r.symbol) ?? [];
+      // one point per hour, the last of each hour
+      const hour = Math.floor(r.ts / 3600_000);
+      if (list.length && Math.floor(list[list.length - 1].ts / 3600_000) === hour) list[list.length - 1] = { ts: r.ts, p: r.token_price };
+      else list.push({ ts: r.ts, p: r.token_price });
+      spark.set(r.symbol, list);
+    }
+  }
+  const updated = top.reduce((m, r) => Math.max(m, r.updated_at), 0);
+  return json(
+    200,
+    {
+      updatedAt: updated ? new Date(updated).toISOString() : null,
+      tokens: top.map((r) => {
+        const pts = (spark.get(r.symbol) ?? []).map((x) => x.p);
+        const first = pts[0];
+        return {
+          symbol: r.symbol,
+          name: r.name,
+          tokenPrice: r.token_price,
+          dexPrice: r.dex_price,
+          premiumPct: r.premium_pct,
+          liquidityUsd: r.liquidity_usd,
+          changePct: first && r.token_price ? Math.round((r.token_price / first - 1) * 10000) / 100 : null, // over the sparkline window
+          spark: pts,
+        };
+      }),
+    },
+    { "cache-control": "public, max-age=300" },
+  );
+}
+
+// ---- GET /public/overview: the website's /stats page. Free, not metered, cached 5 minutes. ----
+// Totals and short top lists from the last collector run and the stored launches; the full per-token table stays a
+// paid call (/v1/stats).
+export async function getOverview(db: D1Like | undefined, now: () => number): Promise<Response> {
+  if (!db) throw new ApiError(503, "data_off", "Market data is not set up on this server.");
+  const { results: all } = await db.prepare("SELECT * FROM token_stats").all<StatsDb>();
+  const priced = all.filter((r) => r.dex_price !== null && r.token_price !== null && r.premium_pct !== null);
+  const liquidity = all.reduce((s, r) => s + (r.liquidity_usd ?? 0), 0);
+  const deep = priced.filter((r) => (r.liquidity_usd ?? 0) >= 10_000); // premiums of thin pools say little
+  const median = (xs: number[]) => {
+    if (!xs.length) return null;
+    const s = [...xs].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const brief = (r: StatsDb) => ({ symbol: r.symbol, name: r.name, tokenPrice: r.token_price, dexPrice: r.dex_price, premiumPct: r.premium_pct, liquidityUsd: r.liquidity_usd });
+  const byPremium = [...deep].sort((a, b) => (b.premium_pct ?? 0) - (a.premium_pct ?? 0));
+  const since = now() - 24 * 3600_000;
+  const launches = await db.prepare("SELECT COUNT(*) AS n FROM launches WHERE created_at >= ?").bind(since).first<{ n: number }>();
+  const { results: newest } = await db
+    .prepare("SELECT token, symbol, name, created_at FROM launches ORDER BY created_at DESC LIMIT 8")
+    .all<{ token: string; symbol: string | null; name: string | null; created_at: number }>();
+  const updated = all.reduce((m, r) => Math.max(m, r.updated_at), 0);
+  const round = (n: number | null, dp: number) => (n === null ? null : Math.round(n * 10 ** dp) / 10 ** dp);
+  return json(
+    200,
+    {
+      updatedAt: updated ? new Date(updated).toISOString() : null,
+      totals: {
+        tokens: all.length,
+        tokensWithPool: priced.length,
+        liquidityUsd: Math.round(liquidity),
+        medianPremiumPct: round(median(deep.map((r) => r.premium_pct!)), 4),
+        launches24h: launches?.n ?? 0,
+      },
+      deepest: [...priced].sort((a, b) => (b.liquidity_usd ?? 0) - (a.liquidity_usd ?? 0)).slice(0, 8).map(brief),
+      premiums: byPremium.slice(0, 5).map(brief),
+      discounts: byPremium.slice(-5).reverse().map(brief),
+      newestLaunches: newest.map((l) => ({ token: l.token, symbol: l.symbol, name: l.name, createdAt: new Date(l.created_at).toISOString() })),
+      note: "Premium and discount lists count only pools with at least $10,000 of depth.",
+    },
+    { "cache-control": "public, max-age=300" },
+  );
+}

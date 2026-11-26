@@ -4,7 +4,7 @@ export const CORS: Record<string, string> = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers": "content-type, payment-signature, x-holder",
   "access-control-expose-headers": "payment-required, payment-response, x-free-calls-left",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
 };
 
 export function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {

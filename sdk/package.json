@@ -1,0 +1,25 @@
+{
+  "name": "equito",
+  "version": "0.1.0",
+  "description": "Stock token data on Robinhood Chain: prices, DEX premium, pools, candles, portfolios, SEC research, Uniswap quotes and unsigned trades. Pays per call over x402 when you hand it a signer.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "engines": { "node": ">=18" },
+  "keywords": ["robinhood-chain", "tokenized-stocks", "stock-tokens", "x402", "uniswap", "ai-agents", "api"],
+  "repository": { "type": "git", "url": "https://github.com/equito-dev/equito-app", "directory": "sdk" },
+  "homepage": "https://equito.pro",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~7.0.2"
+  }
+}

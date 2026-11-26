@@ -12,7 +12,7 @@ const NOW = 1_800_000_000_000;
 // The D1 binding's small surface over Node's built-in SQLite, with the real migration applied.
 function fakeD1(): D1Like {
   const db = new DatabaseSync(":memory:");
-  db.exec(readFileSync(new URL("../migrations/0001_market_data.sql", import.meta.url), "utf8"));
+  for (const m of ["0001_market_data.sql", "0002_launches_alerts.sql"]) db.exec(readFileSync(new URL("../migrations/" + m, import.meta.url), "utf8"));
   const stmt = (sql: string, params: unknown[] = []): D1Statement => ({
     bind: (...v) => stmt(sql, v),
     run: async () => db.prepare(sql).run(...(params as any[])),
@@ -90,7 +90,7 @@ test("the collector reads every token and stores them through the API", async ()
     throw new Error("unexpected " + url);
   }) as typeof fetch;
   const r = await collect({ fetch: f, rpcUrls: ["https://rpc.test"], apiBase: "https://api.equito.pro", ingestKey: KEY, now: () => NOW, log: () => {} });
-  assert.deepEqual(r, { tokens: 1, rows: 1, failed: [], sent: 1 });
+  assert.deepEqual(r, { tokens: 1, rows: 1, failed: [], sent: 1, launches: null });
   const stored = (await (await app(new Request("https://api.equito.pro/v1/stats"), env)).json()) as any;
   assert.equal(stored.tokens[0].symbol, "NVDA");
   assert.equal(stored.tokens[0].tokenPrice, 151);
@@ -113,4 +113,40 @@ test("/v1/stats/{symbol} falls back to the stored numbers when every chain node 
   assert.equal(b.live, false);
   assert.equal(b.tokenPrice, 150);
   assert.equal(b.updatedAt, new Date(NOW).toISOString());
+});
+
+test("GET /public/board is free, skips tokens without a DEX price, and carries an hourly sparkline", async () => {
+  const env: Env = { DB: fakeD1(), INGEST_KEY: KEY };
+  const hour = 3600_000;
+  for (const [t, p] of [[NOW - 3 * hour, 100], [NOW - 2 * hour, 110], [NOW - 2 * hour + 60_000, 112], [NOW, 120]] as const) {
+    await createApp({ fetch: noFetch, now: () => t })(snapshot({ ts: t, rows: [row("NVDA", p), row("EMPTY", 5, { dexPrice: null })] }), env);
+  }
+  const res = await createApp({ fetch: noFetch, now: () => NOW })(new Request("https://api.equito.pro/public/board"), env);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("x-free-calls-left"), null); // not metered
+  const b = (await res.json()) as any;
+  assert.deepEqual(b.tokens.map((t: any) => t.symbol), ["NVDA"]);
+  assert.deepEqual(b.tokens[0].spark, [100, 112, 120]);
+  assert.equal(b.tokens[0].changePct, 20);
+});
+
+test("GET /public/overview sums the market and lists premiums only from deep pools", async () => {
+  const env: Env = { DB: fakeD1(), INGEST_KEY: KEY };
+  await createApp({ fetch: noFetch, now: () => NOW })(snapshot({ ts: NOW, rows: [
+    row("NVDA", 150, { premiumPct: 0.2, liquidityUsd: 2_000_000 }),
+    row("TSLA", 300, { premiumPct: -1.5, liquidityUsd: 500_000 }),
+    row("THIN", 10, { premiumPct: 40, liquidityUsd: 50 }), // a thin pool: never a headline premium
+    row("NOPOOL", 5, { dexPrice: null, premiumPct: null, liquidityUsd: 0 }),
+  ] }), env);
+  const res = await createApp({ fetch: noFetch, now: () => NOW })(new Request("https://api.equito.pro/public/overview"), env);
+  assert.equal(res.status, 200);
+  const b = (await res.json()) as any;
+  assert.equal(b.totals.tokens, 4);
+  assert.equal(b.totals.tokensWithPool, 3);
+  assert.equal(b.totals.liquidityUsd, 2_500_050);
+  assert.equal(b.totals.medianPremiumPct, -0.65);
+  assert.equal(b.premiums[0].symbol, "NVDA");
+  assert.equal(b.discounts[0].symbol, "TSLA");
+  assert.ok(!b.premiums.some((t: any) => t.symbol === "THIN"));
+  assert.equal(b.deepest[0].symbol, "NVDA");
 });
