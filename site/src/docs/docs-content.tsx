@@ -426,3 +426,5 @@ const trade = await eq.buildTrade({ symbol: "NVDA", side: "buy", amount: 100, re
 
 export const PAGES: (DocPage & { group: string })[] = GROUPS.flatMap((g) => g.pages.map((p) => ({ ...p, group: g.label })))
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : '/docs')
+// The tab title, set by the page in the browser and written into each page's own HTML at build (vite.config.ts).
+export const docTitle = (p: { title: string }) => `${p.title} · Equito docs`

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Menu, Search } from 'lucide-react'
 import { CATALOG } from '../../../api/src/discovery.ts'
-import { GROUPS, PAGES, docHref, endpointTitle } from '../docs/docs-content'
+import { GROUPS, PAGES, docHref, docTitle, endpointTitle } from '../docs/docs-content'
 
 type Hit = { title: string; sub: string; href: string }
 
@@ -133,7 +133,7 @@ export function DocsPage({ slug }: { slug: string }) {
   const [searching, setSearching] = useState(false)
 
   useEffect(() => {
-    document.title = page ? `${page.title} · Equito docs` : 'Not found · Equito docs'
+    document.title = docTitle(page ?? { title: 'Not found' })
     if (window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView()
   }, [page])
 
