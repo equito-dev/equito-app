@@ -8,6 +8,8 @@
 //   X402_PAY_TO        the wallet (0x...) that receives paid calls; must be the wallet registered as the Priors merchant.
 //   FACILITATOR_URL    optional, default https://facilitator.priors.trade
 //   HOLDER_TOKEN / HOLDER_MIN   set after the $EQUITO launch: holders of HOLDER_MIN base units pay half.
+//   CONTACT_EMAIL      the product contact email SEC EDGAR requires in the User-Agent (never a personal address);
+//                      GET /v1/research answers 503 research_off until it is set.
 // Without X402_PAY_TO or PRIORS_API_KEY the 50 free calls still work; past them the API answers 503 payment_not_configured.
 {
   "name": "equito-api",

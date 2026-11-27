@@ -66,9 +66,12 @@ function payment402(url: string, requirements: Requirements, error: string): Res
   return withHeaders(json(402, body), { "payment-required": toBase64(body) });
 }
 
-export async function meter(req: Request, env: MeterEnv, units: number, handler: () => Promise<Response>, deps: MeterDeps): Promise<Response> {
-  const free = env.FREE ? env.FREE.get(env.FREE.idFromName(callerKey(req))) : undefined;
-  if (free) {
+// `paidOnly` (the /v1/paid/... paths, listed for x402 directories): no free tier, 402 until paid.
+export async function meter(req: Request, env: MeterEnv, units: number, handler: () => Promise<Response>, deps: MeterDeps, paidOnly = false): Promise<Response> {
+  const free = !paidOnly && env.FREE ? env.FREE.get(env.FREE.idFromName(callerKey(req))) : undefined;
+  if (paidOnly) {
+    // straight to payment
+  } else if (free) {
     // Take the slots first (race-safe: parallel calls cannot overshoot), give them back unless the handler answered 2xx.
     const taken = (await (await free.fetch(new Request(`https://free/take?n=${units}`, { method: "POST" }))).json()) as { ok: boolean; left: number };
     if (taken.ok) {
@@ -81,13 +84,13 @@ export async function meter(req: Request, env: MeterEnv, units: number, handler:
     return handler(); // no free tier bound (local dev): everything is free
   }
 
-  if (!payOk(env)) return fail(503, "payment_not_configured", "The free calls for today are used, and paid calls are not set up on this server yet.");
+  if (!payOk(env)) return fail(503, "payment_not_configured", paidOnly ? "Paid calls are not set up on this server yet." : "The free calls for today are used, and paid calls are not set up on this server yet.");
   const full = amountFor(units);
   const claimed = claimedHolder(req);
   const holder = claimed && holderConfig(env) && deps.isHolder ? ((await deps.isHolder(claimed)) ? claimed : null) : null;
   const requirements = requirementsFor(env.X402_PAY_TO!, holder ? holderAmount(full) : full);
   const header = req.headers.get("payment-signature");
-  if (!header) return payment402(req.url, requirements, `The ${FREE_CALLS_PER_DAY} free calls for today are used. Payment required.`);
+  if (!header) return payment402(req.url, requirements, paidOnly ? "Payment required." : `The ${FREE_CALLS_PER_DAY} free calls for today are used. Payment required.`);
 
   const payload = fromBase64(header);
   const problem = checkPayload(payload, requirements);

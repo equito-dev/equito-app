@@ -4,6 +4,7 @@
 // It reuses the API's own code (src/), so /v1/stats live and the stored numbers are computed the same way.
 import { Chain } from "../src/chain.ts";
 import { statsFor } from "../src/onchain.ts";
+import { recentLaunches } from "../src/launches.ts";
 import { Robinhood, type Asset } from "../src/robinhood.ts";
 import type { StatsRow } from "../src/store.ts";
 
@@ -32,7 +33,7 @@ async function pool<T, R>(items: T[], size: number, work: (item: T) => Promise<R
   return out;
 }
 
-export async function collect(d: CollectDeps): Promise<{ tokens: number; rows: number; failed: string[]; sent: number }> {
+export async function collect(d: CollectDeps): Promise<{ tokens: number; rows: number; failed: string[]; sent: number; launches: number | null }> {
   const log = d.log ?? ((line) => console.log(JSON.stringify(line)));
   const ts = d.now();
   const rh = new Robinhood(d.fetch, d.now);
@@ -67,6 +68,22 @@ export async function collect(d: CollectDeps): Promise<{ tokens: number; rows: n
     if (!res.ok) throw new Error(`snapshot chunk ${i / size + 1} refused: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
     sent += part.length;
   }
-  log({ event: "run_done", tokens: assets.length, rows: rows.length, failed: failed.length, sent });
-  return { tokens: assets.length, rows: rows.length, failed, sent };
+  // Pons launches of the last ~26 hours (GET /v1/markets). A failure here never fails the price run.
+  let launches: number | null = null;
+  try {
+    const found = await recentLaunches(chain);
+    for (let i = 0; i < found.length; i += 300) {
+      const res = await d.fetch(d.apiBase.replace(/\/+$/, "") + "/internal/launches", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${d.ingestKey}` },
+        body: JSON.stringify({ launches: found.slice(i, i + 300) }),
+      });
+      if (!res.ok) throw new Error(`launches chunk refused: HTTP ${res.status}`);
+    }
+    launches = found.length;
+  } catch (err) {
+    log({ event: "launches_failed", error: err instanceof Error ? err.message.slice(0, 160) : "unknown" });
+  }
+  log({ event: "run_done", tokens: assets.length, rows: rows.length, failed: failed.length, sent, launches });
+  return { tokens: assets.length, rows: rows.length, failed, sent, launches };
 }

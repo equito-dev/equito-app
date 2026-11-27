@@ -106,6 +106,20 @@ export class Chain {
     return results;
   }
 
+  // Any JSON-RPC methods (eth_blockNumber, eth_getLogs, eth_getBlockByNumber...), same batching and failover.
+  // Each answer is the raw result, or null when that call errored.
+  async rpc(list: { method: string; params: unknown[] }[]): Promise<(unknown | null)[]> {
+    const results: (unknown | null)[] = new Array(list.length).fill(null);
+    for (let start = 0; start < list.length; start += MAX_BATCH) {
+      const chunk = list.slice(start, start + MAX_BATCH);
+      const answers = await this.batch(chunk.map((c, i) => ({ jsonrpc: "2.0" as const, id: start + i, method: c.method, params: c.params })));
+      chunk.forEach((_, i) => {
+        if (answers.has(start + i)) results[start + i] = answers.get(start + i) ?? null;
+      });
+    }
+    return results;
+  }
+
   async call(c: Call): Promise<unknown | null> {
     return (await this.calls([c]))[0];
   }

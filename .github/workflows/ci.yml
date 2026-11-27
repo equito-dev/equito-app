@@ -1,0 +1,67 @@
+name: ci
+
+# Every pull request and every push to main: API tests and typecheck, SDK tests and build, site typecheck and build.
+# No secrets: every test runs against fakes, nothing reaches the chain, Robinhood or Cloudflare.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test
+
+  sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # The SDK tests run against the real API code, so the API's dependencies are needed too.
+      - run: npm ci --ignore-scripts
+        working-directory: api
+      - run: npm ci --ignore-scripts
+        working-directory: sdk
+      - run: npm run typecheck
+        working-directory: sdk
+      - run: npm test
+        working-directory: sdk
+      - run: npm run build
+        working-directory: sdk
+
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # /docs imports the API's endpoint catalog, which imports viem types.
+      - run: npm ci --ignore-scripts
+        working-directory: api
+      - run: npm ci
+        working-directory: site
+      - run: npm run build
+        working-directory: site

@@ -1,38 +1,49 @@
 import { useState } from 'react'
 import { ArrowRight, Bot, Check, Coins, Copy, FileText, Gauge, KeyRound, LineChart, Repeat, Zap } from 'lucide-react'
 import { TOKEN_ADDRESS } from './data/token'
-import { DEMO, MARKETS, type Row } from './data/markets'
+import { useBoard, type Board, type BoardToken } from './data/board'
+import { StatsPage } from './pages/Stats'
+import { DocsPage } from './pages/Docs'
 
 const API = 'https://api.equito.pro'
-const DOCS = 'https://docs.equito.pro'
+const DOCS = '/docs'
 const REPO = 'https://github.com/equito-dev/equito-app'
 
+// Three pages, picked by path: / (home), /stats, /docs. Cloudflare serves index.html for every path.
 export default function App() {
+  const board = useBoard()
+  const path = typeof window === 'undefined' ? '/' : window.location.pathname.replace(/\/+$/, '') || '/'
+  const page = path === '/stats' ? <StatsPage /> : path === '/docs' ? <DocsPage /> : null
   return (
     <div className="min-h-screen bg-paper">
-      <Nav />
-      <TickerTape />
-      <Hero />
-      <Markets />
-      <CodeSection />
-      <Products />
-      <Pricing />
-      {TOKEN_ADDRESS && <Token address={TOKEN_ADDRESS} />}
-      <Closing />
+      <Nav home={page === null} />
+      <TickerTape board={board} />
+      {page ?? (
+        <>
+          <Hero />
+          <Markets board={board} />
+          <CodeSection />
+          <Products />
+          <Pricing />
+          <Token address={TOKEN_ADDRESS} />
+          <Closing />
+        </>
+      )}
       <Footer />
     </div>
   )
 }
 
-function Nav() {
+function Nav({ home }: { home: boolean }) {
+  const at = (hash: string) => (home ? hash : '/' + hash)
   return (
     <header className="sticky top-0 z-20 bg-paper/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-8">
         <a href="/" className="font-mono text-[15px] font-medium tracking-[0.22em]">EQUITO</a>
         <nav className="hidden items-center gap-8 text-sm text-muted md:flex">
-          <a href="#api" className="hover:text-ink">API</a>
-          <a href="#products" className="hover:text-ink">Products</a>
-          <a href="#pricing" className="hover:text-ink">Pricing</a>
+          <a href={at('#api')} className="hover:text-ink">API</a>
+          <a href={at('#products')} className="hover:text-ink">Products</a>
+          <a href={at('#pricing')} className="hover:text-ink">Pricing</a>
           <a href={DOCS} className="hover:text-ink">Docs</a>
           <a href="/stats" className="hover:text-ink">Stats</a>
         </nav>
@@ -48,22 +59,27 @@ const pct = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toF
 const tone = (n: number) => (n > 0 ? 'text-up' : n < 0 ? 'text-down' : 'text-muted')
 const usd = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-function TickerTape() {
-  const items = [...MARKETS, ...MARKETS]
+function TickerTape({ board }: { board: Board }) {
+  const items = [...board.tokens, ...board.tokens]
   return (
-    <div className="overflow-hidden bg-ink text-white">
-      <div className="ticker flex w-max gap-10 py-2.5 font-mono text-xs">
-        {items.map((m, i) => (
-          <span key={i} className="num flex items-center gap-2 whitespace-nowrap">
-            <span className="font-medium tracking-wider">{m.ticker}</span>
-            <span className="text-zinc-300">{usd(m.price)}</span>
-            <span className={m.changePct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{pct(m.changePct)}</span>
-          </span>
-        ))}
-      </div>
+    <div className="h-9 overflow-hidden bg-ink text-white">
+      {items.length > 0 && (
+        <div className="ticker flex w-max gap-10 py-2.5 font-mono text-xs">
+          {items.map((m, i) => (
+            <span key={i} className="num flex items-center gap-2 whitespace-nowrap">
+              <span className="font-medium tracking-wider">{m.symbol}</span>
+              <span className="text-zinc-300">{usd(m.tokenPrice)}</span>
+              {m.changePct !== null && <span className={m.changePct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{pct(m.changePct)}</span>}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
+
+const usdShort = (n: number) => (n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(1)}K` : usd(n))
+const timeUtc = (iso: string) => new Date(iso).toISOString().slice(11, 16) + ' UTC'
 
 function Spark({ data, up }: { data: number[]; up: boolean }) {
   const min = Math.min(...data)
@@ -76,49 +92,69 @@ function Spark({ data, up }: { data: number[]; up: boolean }) {
   )
 }
 
-function Markets() {
+function Markets({ board }: { board: Board }) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-8">
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        <div>
+      <div className="relative flex min-h-[300px] flex-col justify-between gap-6 overflow-hidden rounded-3xl bg-[#f1f2f3] p-8 sm:p-12">
+        <img
+          src="/media/panel-markets.webp"
+          alt=""
+          style={{ maskImage: PANEL_FADE, WebkitMaskImage: PANEL_FADE }}
+          className="pointer-events-none absolute inset-y-0 right-0 h-full w-full object-cover object-right opacity-30 md:w-[62%] md:opacity-100"
+        />
+        <div className="relative">
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">// Markets</p>
-          <h2 className="mt-4 max-w-2xl text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">
-            The token price, the real stock, and the gap between them.
+          <h2 className="mt-4 max-w-xl text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">
+            The token price, the price on chain, and the gap between them.
           </h2>
         </div>
-        {DEMO && <span className="rounded-full border border-line px-3 py-1 font-mono text-[11px] uppercase tracking-wider text-muted">Demo data</span>}
+        {board.status === 'ready' && board.updatedAt && (
+          <span className="relative flex w-fit items-center gap-2 rounded-full border border-line bg-white px-3 py-1 font-mono text-[11px] uppercase tracking-wider text-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-up" /> Live · updated {timeUtc(board.updatedAt)}
+          </span>
+        )}
       </div>
       <div className="mt-12 overflow-x-auto rounded-2xl border border-line bg-white">
-        <table className="num w-full min-w-[640px] text-sm">
+        <table className="num w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-line bg-[#fafafa] text-left font-mono text-[11px] uppercase tracking-[0.12em] text-muted">
               <th className="px-6 py-4 font-normal">Token</th>
               <th className="px-6 py-4 text-right font-normal">Price</th>
-              <th className="px-6 py-4 text-right font-normal">24h</th>
-              <th className="px-6 py-4 text-right font-normal">Premium vs stock</th>
-              <th className="px-6 py-4 text-right font-normal">7d</th>
+              <th className="px-6 py-4 text-right font-normal">Day</th>
+              <th className="px-6 py-4 text-right font-normal">On-chain premium</th>
+              <th className="px-6 py-4 text-right font-normal">Pool depth</th>
+              <th className="px-6 py-4 text-right font-normal">Last day</th>
             </tr>
           </thead>
           <tbody>
-            {MARKETS.map((m: Row) => (
-              <tr key={m.ticker} className="border-b border-line/70 last:border-0 hover:bg-[#fafafa]">
+            {board.tokens.map((m: BoardToken) => (
+              <tr key={m.symbol} className="border-b border-line/70 last:border-0 hover:bg-[#fafafa]">
                 <td className="px-6 py-4">
-                  <span className="font-semibold">{m.ticker}</span>
-                  <span className="ml-3 text-muted">{m.name}</span>
+                  <span className="font-semibold">{m.symbol}</span>
+                  <span className="ml-3 inline-block max-w-[280px] truncate align-bottom text-muted">{m.name}</span>
                 </td>
-                <td className="px-6 py-4 text-right font-medium">{usd(m.price)}</td>
-                <td className={`px-6 py-4 text-right ${tone(m.changePct)}`}>{pct(m.changePct)}</td>
-                <td className="px-6 py-4 text-right text-muted">{pct(m.premiumPct)}</td>
+                <td className="px-6 py-4 text-right font-medium">{usd(m.tokenPrice)}</td>
+                <td className={`px-6 py-4 text-right ${m.changePct === null ? 'text-muted' : tone(m.changePct)}`}>{m.changePct === null ? '—' : pct(m.changePct)}</td>
+                <td className="px-6 py-4 text-right text-muted">{m.premiumPct === null ? '—' : pct(m.premiumPct)}</td>
+                <td className="px-6 py-4 text-right text-muted">{m.liquidityUsd === null ? '—' : usdShort(m.liquidityUsd)}</td>
                 <td className="px-6 py-4">
-                  <div className="flex justify-end">
-                    <Spark data={m.spark} up={m.changePct >= 0} />
-                  </div>
+                  <div className="flex justify-end">{m.spark.length > 1 && <Spark data={m.spark} up={(m.changePct ?? 0) >= 0} />}</div>
                 </td>
               </tr>
             ))}
+            {board.status !== 'ready' && (
+              <tr>
+                <td colSpan={6} className="px-6 py-10 text-center text-muted">
+                  {board.status === 'loading' ? 'Loading live prices…' : 'Live prices could not be loaded right now.'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+      <p className="mt-4 text-xs text-muted">
+        Price: Robinhood's price for one token. On-chain premium: the deepest Uniswap pool against that price. Pool depth: every USDG pool, both sides. Data, not investment advice.
+      </p>
     </section>
   )
 }
@@ -319,23 +355,39 @@ function Pricing() {
   )
 }
 
+// Fades a panel image into the panel on its left edge, so text on the left stays clean.
+const PANEL_FADE = 'linear-gradient(to right, transparent, black 35%)'
+
+// The $EQUITO panel. Before launch it says what the token will do; the contract row appears once TOKEN_ADDRESS is set.
 function Token({ address }: { address: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <section className="bg-paper">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-16 sm:px-8 md:flex-row md:items-center md:justify-between">
-        <div>
+    <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-8">
+      <div className="relative grid min-h-[340px] overflow-hidden rounded-3xl bg-[#f1f2f3] md:grid-cols-2">
+        <div className="relative z-10 flex flex-col justify-center p-8 sm:p-12">
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">// $EQUITO</p>
-          <p className="mt-3 text-2xl font-semibold tracking-tight">Hold 2,000,000 and every paid call costs half.</p>
+          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Hold it, and every paid call costs half.</h2>
+          <p className="mt-4 max-w-md text-muted">
+            Wallets holding 2,000,000 $EQUITO pay half for every paid API call, checked live on each call.
+            {address ? '' : ' The token launches on Pons once the API is live.'}
+          </p>
+          {address && (
+            <button
+              onClick={() => navigator.clipboard.writeText(address).then(() => setCopied(true))}
+              className="mt-7 flex w-fit items-center gap-3 rounded-xl border border-line bg-white px-4 py-3 font-mono text-sm"
+            >
+              <span className="rounded-md bg-ink px-2 py-1 text-xs text-white">CA</span>
+              {address.slice(0, 6)}…{address.slice(-4)}
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          )}
         </div>
-        <button
-          onClick={() => navigator.clipboard.writeText(address).then(() => setCopied(true))}
-          className="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3 font-mono text-sm"
-        >
-          <span className="rounded-md bg-ink px-2 py-1 text-xs text-white">CA</span>
-          {address.slice(0, 6)}…{address.slice(-4)}
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-        </button>
+        <img
+          src="/media/panel-token.webp"
+          alt=""
+          style={{ maskImage: PANEL_FADE, WebkitMaskImage: PANEL_FADE }}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-right opacity-25 md:static md:opacity-100"
+        />
       </div>
     </section>
   )
@@ -343,18 +395,25 @@ function Token({ address }: { address: string }) {
 
 function Closing() {
   return (
-    <section>
-      <div className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-8">
-        <h2 className="mx-auto max-w-3xl text-4xl font-semibold tracking-[-0.03em] sm:text-6xl">
-          Stock tokens, readable by any agent.
-        </h2>
-        <div className="mt-9 flex justify-center gap-3">
-          <a href={DOCS} className="inline-flex items-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-medium text-white hover:bg-black">
-            Start building <ArrowRight size={15} />
-          </a>
-          <a href={REPO} className="rounded-lg border border-line px-5 py-3 text-sm font-medium hover:border-ink/30">
-            GitHub
-          </a>
+    <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-8">
+      <div className="relative overflow-hidden rounded-3xl bg-[#eef0f1]">
+        <img src="/media/panel-closing.webp" alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-50 md:opacity-100" />
+        <div className="relative flex min-h-[320px] flex-col justify-between gap-8 p-8 sm:p-12 md:flex-row md:items-end">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">// Start</p>
+            <h2 className="mt-4 max-w-xl text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Stock tokens, readable by any agent.</h2>
+          </div>
+          <div className="flex flex-col items-start gap-3 md:items-end">
+            <div className="flex gap-3">
+              <a href={DOCS} className="inline-flex items-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-medium text-white hover:bg-black">
+                Start building <ArrowRight size={15} />
+              </a>
+              <a href={REPO} className="rounded-lg border border-line bg-white px-5 py-3 text-sm font-medium hover:border-ink/30">
+                GitHub
+              </a>
+            </div>
+            <span className="font-mono text-xs text-muted">50 free calls a day · no key</span>
+          </div>
         </div>
       </div>
     </section>
