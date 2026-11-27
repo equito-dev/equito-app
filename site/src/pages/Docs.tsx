@@ -1,160 +1,207 @@
-// /docs: developer docs built from the API's own endpoint catalog (api/src/discovery.ts), the same list that makes
-// openapi.json, llms.txt, the x402 listing and the MCP tools. Nothing here is typed out twice.
-import { useState } from 'react'
-import { Check, Copy } from 'lucide-react'
-import { CATALOG, type Entry } from '../../../api/src/discovery.ts'
-import { FREE_CALLS_PER_DAY, USDG, callPrice } from '../../../api/src/x402.ts'
+// /docs and /docs/*: a sidebar of grouped pages, one topic per page, "On this page" from the page's own headings,
+// previous/next links and a search box (⌘K or /) over page titles and every endpoint. Pages live in
+// ../docs/docs-content.tsx.
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, Menu, Search } from 'lucide-react'
+import { CATALOG } from '../../../api/src/discovery.ts'
+import { GROUPS, PAGES, docHref, endpointTitle } from '../docs/docs-content'
 
-import { API_URL as API } from '../../../api/src/hosts.ts'
+type Hit = { title: string; sub: string; href: string }
 
-function CodeBlock({ code, label }: { code: string; label?: string }) {
-  const [copied, setCopied] = useState(false)
+const INDEX: Hit[] = [
+  ...PAGES.map((p) => ({ title: p.title, sub: `${p.group} · ${p.lead}`, href: docHref(p.slug) })),
+  ...CATALOG.map((e) => {
+    const page = PAGES.find((p) => p.endpoints?.includes(e))
+    return { title: endpointTitle(e), sub: `${e.tool} · ${e.summary}`, href: `${docHref(page?.slug ?? '')}#${e.tool}` }
+  }),
+]
+
+function search(q: string): Hit[] {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return INDEX.slice(0, 8)
+  return INDEX.filter((h) => words.every((w) => (h.title + ' ' + h.sub).toLowerCase().includes(w))).slice(0, 12)
+}
+
+function SearchDialog({ onClose }: { onClose: () => void }) {
+  const [q, setQ] = useState('')
+  const [i, setI] = useState(0)
+  const hits = useMemo(() => search(q), [q])
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => input.current?.focus(), [])
+  const go = (h?: Hit) => { if (h) window.location.href = h.href }
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-[#0c0c0e] text-[13px] text-zinc-200">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-500">{label ?? 'shell'}</span>
-        <button
-          onClick={() => navigator.clipboard.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })}
-          className="flex items-center gap-1.5 font-mono text-xs text-zinc-400 hover:text-white"
-        >
-          {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Copied' : 'Copy'}
-        </button>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-ink/20 px-4 pt-[12vh] backdrop-blur-sm" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="Search the docs" className="w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3 border-b border-line px-4">
+          <Search size={16} className="text-muted" />
+          <input
+            ref={input}
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setI(0) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') onClose()
+              if (e.key === 'ArrowDown') { e.preventDefault(); setI((n) => Math.min(n + 1, hits.length - 1)) }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setI((n) => Math.max(n - 1, 0)) }
+              if (e.key === 'Enter') go(hits[i])
+            }}
+            placeholder="Search pages and endpoints"
+            aria-label="Search pages and endpoints"
+            className="h-14 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted"
+          />
+          <kbd className="rounded border border-line px-1.5 font-mono text-[11px] text-muted">esc</kbd>
+        </div>
+        <ul className="max-h-[50vh] overflow-y-auto p-2">
+          {hits.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted">Nothing found for “{q}”.</li>}
+          {hits.map((h, n) => (
+            <li key={h.href + h.title}>
+              <a href={h.href} onMouseEnter={() => setI(n)} className={`block rounded-lg px-3 py-2.5 ${n === i ? 'bg-zinc-100' : ''}`}>
+                <p className="text-sm font-medium">{h.title}</p>
+                <p className="truncate text-xs text-muted">{h.sub}</p>
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
-      <pre className="overflow-x-auto p-4 font-mono leading-relaxed"><code>{code}</code></pre>
     </div>
   )
 }
 
-const price = (e: Entry) => (e.units === 0 ? 'Free' : callPrice(e.units))
-
-function example(e: Entry): string {
-  const path = e.example.replace('{id}', 'al_…')
-  if (e.method === 'POST' && e.path === '/trade/build') {
-    return `curl -X POST ${API}/v1/trade/build \\\n  -H 'content-type: application/json' \\\n  -d '{"symbol":"NVDA","side":"buy","amount":"100","recipient":"0xYourWallet"}'`
-  }
-  if (e.method === 'POST' && e.path === '/alerts') {
-    return `curl -X POST ${API}/v1/alerts \\\n  -H 'content-type: application/json' \\\n  -d '{"symbol":"NVDA","metric":"premium_pct","op":"above","value":1,"webhookUrl":"https://example.com/hook"}'`
-  }
-  return `curl${e.method === 'DELETE' ? ' -X DELETE' : ''} "${API}/v1${path}"`
+function Sidebar({ slug, onSearch }: { slug: string; onSearch: () => void }) {
+  return (
+    <nav aria-label="Docs" className="space-y-7 text-sm">
+      <button onClick={onSearch} className="flex w-full items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-muted hover:border-ink/30">
+        <Search size={14} /> <span className="flex-1 text-left">Search</span>
+        <kbd className="rounded border border-line px-1.5 font-mono text-[11px]">⌘K</kbd>
+      </button>
+      {GROUPS.map((g) => (
+        <div key={g.label}>
+          <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted">{g.label}</p>
+          <ul className="space-y-0.5">
+            {g.pages.map((p) => (
+              <li key={p.slug}>
+                <a
+                  href={docHref(p.slug)}
+                  aria-current={p.slug === slug ? 'page' : undefined}
+                  className={`block rounded-md px-3 py-1.5 ${p.slug === slug ? 'bg-zinc-100 font-medium text-ink' : 'text-muted hover:text-ink'}`}
+                >
+                  {p.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  )
 }
 
-const SECTIONS = [
-  ['start', 'Quick start'],
-  ['paying', 'Paying with x402'],
-  ['sdk', 'TypeScript SDK'],
-  ['mcp', 'MCP for agents'],
-  ['endpoints', 'Endpoints'],
-  ['numbers', 'What the numbers mean'],
-] as const
-
-export function DocsPage() {
+// "On this page": the h2 headings the page rendered, with the one in view marked.
+function OnThisPage({ slug }: { slug: string }) {
+  const [heads, setHeads] = useState<{ id: string; text: string }[]>([])
+  const [active, setActive] = useState('')
+  useEffect(() => {
+    const els = [...document.querySelectorAll<HTMLHeadingElement>('article h2[id]')]
+    setHeads(els.map((h) => ({ id: h.id, text: h.textContent ?? '' })))
+    const onScroll = () => {
+      const above = els.filter((h) => h.getBoundingClientRect().top < 120)
+      setActive((above.at(-1) ?? els[0])?.id ?? '')
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [slug])
+  if (heads.length < 2) return null
   return (
-    <main className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-8 lg:grid-cols-[200px_1fr]">
+    <nav aria-label="On this page" className="text-sm">
+      <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted">On this page</p>
+      <ul className="space-y-2 border-l border-line">
+        {heads.map((h) => (
+          <li key={h.id}>
+            <a href={`#${h.id}`} className={`-ml-px block border-l pl-3 ${h.id === active ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink'}`}>
+              {h.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+export function DocsPage({ slug }: { slug: string }) {
+  const at = PAGES.findIndex((p) => p.slug === slug)
+  const page = PAGES[at]
+  const [searching, setSearching] = useState(false)
+
+  useEffect(() => {
+    document.title = page ? `${page.title} · Equito docs` : 'Not found · Equito docs'
+    if (window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView()
+  }, [page])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
+        e.preventDefault()
+        setSearching(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const prev = at > 0 ? PAGES[at - 1] : null
+  const next = at >= 0 && at < PAGES.length - 1 ? PAGES[at + 1] : null
+
+  return (
+    <div className="mx-auto grid max-w-[1400px] gap-10 px-4 sm:px-8 lg:grid-cols-[230px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)_200px]">
       <aside className="hidden lg:block">
-        <nav className="sticky top-28 space-y-2 text-sm">
-          {SECTIONS.map(([id, label]) => (
-            <a key={id} href={`#${id}`} className="block text-muted hover:text-ink">{label}</a>
-          ))}
-        </nav>
+        <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto py-10 pr-2">
+          <Sidebar slug={slug} onSearch={() => setSearching(true)} />
+        </div>
       </aside>
 
-      <div className="min-w-0 max-w-3xl">
-        <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">// Docs</p>
-        <h1 className="mt-4 text-5xl font-semibold leading-[1.02] tracking-[-0.04em]">Build on stock tokens.</h1>
-        <p className="mt-5 text-lg text-muted">
-          One HTTP API for every stock token on Robinhood Chain. No key, no signup: {FREE_CALLS_PER_DAY} calls a day per IP are free, then
-          {callPrice()} a call in USDG over x402. Machine-readable: <a className="underline" href={`${API}/openapi.json`}>openapi.json</a> and{' '}
-          <a className="underline" href={`${API}/llms.txt`}>llms.txt</a>.
-        </p>
+      <article className="min-w-0 max-w-3xl py-10 lg:py-14">
+        <details className="mb-8 rounded-xl border border-line lg:hidden">
+          <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium"><Menu size={15} /> Docs menu</summary>
+          <div className="border-t border-line p-4"><Sidebar slug={slug} onSearch={() => setSearching(true)} /></div>
+        </details>
 
-        <section id="start" className="mt-16 scroll-mt-28">
-          <h2 className="text-2xl font-semibold tracking-tight">Quick start</h2>
-          <p className="mt-3 text-muted">Ask for a token's numbers. The answer is JSON; errors are <code className="font-mono text-sm">{'{ error: { code, message } }'}</code>.</p>
-          <div className="mt-5 space-y-3">
-            <CodeBlock code={`curl ${API}/v1/stats/NVDA`} />
-            <CodeBlock code={`curl "${API}/v1/quote?symbol=NVDA&side=buy&amount=100"`} />
-          </div>
-        </section>
+        {page ? (
+          <>
+            <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted">{page.group}</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">{page.title}</h1>
+            <p className="mt-4 text-lg leading-relaxed text-muted">{page.lead}</p>
+            <div className="mt-2">{page.body()}</div>
 
-        <section id="paying" className="mt-16 scroll-mt-28">
-          <h2 className="text-2xl font-semibold tracking-tight">Paying with x402</h2>
-          <ol className="mt-4 list-decimal space-y-2 pl-5 text-muted">
-            <li>The first {FREE_CALLS_PER_DAY} calls of the UTC day from your IP are free. The header <code className="font-mono text-sm">x-free-calls-left</code> counts down; only successful answers use a call.</li>
-            <li>After that a call answers <b className="text-ink">402</b> with the terms in the body and, base64, in the <code className="font-mono text-sm">PAYMENT-REQUIRED</code> header: USDG (<span className="font-mono text-sm">{USDG.slice(0, 10)}…</span>) on Robinhood Chain, scheme exact, {callPrice()} per call ({callPrice(2)} for trade/build).</li>
-            <li>Sign those terms with your wallet (any x402 client does it) and send the same request again with the payload in <code className="font-mono text-sm">PAYMENT-SIGNATURE</code>.</li>
-            <li>You are charged only when the answer succeeds. It then carries <code className="font-mono text-sm">PAYMENT-RESPONSE</code> with the transaction.</li>
-          </ol>
-          <p className="mt-4 text-sm text-muted">Holders of $EQUITO pay half once the token is live: send <code className="font-mono">x-holder: &lt;address&gt;</code> and pay from that address.</p>
-        </section>
+            <div className="mt-16 grid gap-3 border-t border-line pt-8 sm:grid-cols-2">
+              {prev ? (
+                <a href={docHref(prev.slug)} className="rounded-xl border border-line p-4 hover:border-ink/30">
+                  <span className="flex items-center gap-1 text-xs text-muted"><ArrowLeft size={13} /> Previous</span>
+                  <span className="mt-1 block font-medium">{prev.title}</span>
+                </a>
+              ) : <span />}
+              {next && (
+                <a href={docHref(next.slug)} className="rounded-xl border border-line p-4 text-right hover:border-ink/30">
+                  <span className="flex items-center justify-end gap-1 text-xs text-muted">Next <ArrowRight size={13} /></span>
+                  <span className="mt-1 block font-medium">{next.title}</span>
+                </a>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 className="text-4xl font-semibold tracking-[-0.03em]">Page not found</h1>
+            <p className="mt-4 text-muted">That docs page does not exist. <a href="/docs" className="font-medium text-ink underline underline-offset-4">Start from the introduction</a> or search with ⌘K.</p>
+          </>
+        )}
+        <p className="mt-10 text-xs text-muted">Data on Robinhood Chain. Not investment advice. Equito never holds keys or signs a transaction.</p>
+      </article>
 
-        <section id="sdk" className="mt-16 scroll-mt-28">
-          <h2 className="text-2xl font-semibold tracking-tight">TypeScript SDK</h2>
-          <p className="mt-3 text-muted">No dependencies. Node 18+, browsers, Deno, Bun and Workers. Give it a <code className="font-mono text-sm">pay</code> function and it pays and retries for you.</p>
-          <div className="mt-5 space-y-3">
-            <CodeBlock code="npm install equito" />
-            <CodeBlock
-              label="ts"
-              code={`import { Equito } from "equito";
+      <aside className="hidden xl:block">
+        <div className="sticky top-16 py-14">{page && <OnThisPage slug={slug} />}</div>
+      </aside>
 
-const eq = new Equito({
-  // optional: sign x402 payments with your own wallet once the free calls are used
-  pay: async (requirements) => signWithMyWallet(requirements),
-});
-
-const nvda = await eq.stats("NVDA");
-const trade = await eq.buildTrade({ symbol: "NVDA", side: "buy", amount: "100", recipient: "0xYourWallet" });
-// trade.transactions: unsigned approve + swap. Check them, then sign and send from your wallet.`}
-            />
-          </div>
-        </section>
-
-        <section id="mcp" className="mt-16 scroll-mt-28">
-          <h2 className="text-2xl font-semibold tracking-tight">MCP for agents</h2>
-          <p className="mt-3 text-muted">A remote MCP server with one tool per endpoint. Add it to any MCP client (desktop assistants, IDEs, agent frameworks):</p>
-          <div className="mt-5">
-            <CodeBlock label="json" code={`{\n  "mcpServers": {\n    "equito": { "url": "${API}/mcp" }\n  }\n}`} />
-          </div>
-          <p className="mt-3 text-sm text-muted">Tools: {CATALOG.map((e) => e.tool).join(', ')}, get_pricing. Past the free calls a tool answers with the payment terms; call it again with <code className="font-mono">payment_signature</code>.</p>
-        </section>
-
-        <section id="endpoints" className="mt-16 scroll-mt-28">
-          <h2 className="text-2xl font-semibold tracking-tight">Endpoints</h2>
-          <div className="mt-6 space-y-8">
-            {CATALOG.map((e) => (
-              <div key={e.method + e.path} id={e.tool} className="scroll-mt-28 border-t border-line pt-6">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className={`rounded-md px-2 py-0.5 font-mono text-xs font-medium ${e.method === 'GET' ? 'bg-emerald-50 text-up' : e.method === 'POST' ? 'bg-sky-50 text-sky-700' : 'bg-rose-50 text-down'}`}>{e.method}</span>
-                  <code className="font-mono text-[15px] font-medium">/v1{e.path}</code>
-                  <span className="ml-auto font-mono text-xs text-muted">{price(e)}</span>
-                </div>
-                <p className="mt-3 text-muted">{e.summary}</p>
-                {e.params && e.params.length > 0 && (
-                  <ul className="mt-3 space-y-1 text-sm">
-                    {e.params.map((p) => (
-                      <li key={p.name}>
-                        <code className="font-mono">{p.name}</code> <span className="text-muted">({p.in}{p.required ? ', required' : ''}): {p.description}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="mt-4"><CodeBlock code={example(e)} /></div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section id="numbers" className="mt-16 scroll-mt-28">
-          <h2 className="text-2xl font-semibold tracking-tight">What the numbers mean</h2>
-          <ul className="mt-4 space-y-3 text-muted">
-            <li><b className="text-ink">tokenPrice</b>: Robinhood's own price for one token (its token bid/ask, already times the multiplier).</li>
-            <li><b className="text-ink">dexPrice</b>: the deepest Uniswap v3 USDG pool. A pool counts only with in-range liquidity, both tokens inside and a price within 10x of Robinhood's.</li>
-            <li><b className="text-ink">premiumPct</b>: dexPrice against tokenPrice, in percent. Positive means the token costs more on chain. Outside US market hours the two can drift apart.</li>
-            <li><b className="text-ink">liquidityUsd</b>: every USDG pool of the token, both sides, valued at Robinhood's price.</li>
-            <li><b className="text-ink">stats list, history, markets</b>: from a collector that reads the chain about once an hour; each answer says when.</li>
-          </ul>
-          <p className="mt-6 text-sm text-muted">Equito never holds keys and never signs or sends a transaction. Data, not investment advice.</p>
-        </section>
-      </div>
-    </main>
+      {searching && <SearchDialog onClose={() => setSearching(false)} />}
+    </div>
   )
 }

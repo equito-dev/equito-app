@@ -1,29 +1,31 @@
 import { useState } from 'react'
-import { ArrowRight, Bot, Check, Coins, Copy, FileText, Gauge, KeyRound, LineChart, Repeat, Zap } from 'lucide-react'
+import { ArrowRight, Bot, Check, Coins, Copy, FileText, Gauge, KeyRound, LineChart, Repeat, Wallet, Zap } from 'lucide-react'
 import { TOKEN_ADDRESS } from './data/token'
 import { useBoard, type Board, type BoardToken } from './data/board'
 import { StatsPage } from './pages/Stats'
 import { DocsPage } from './pages/Docs'
-
-import { API_URL as API } from '../../api/src/hosts.ts'
+import { API_URL as API, SITE_URL as SITE } from '../../api/src/hosts.ts'
 import { FREE_CALLS_PER_DAY, callPrice } from '../../api/src/x402.ts'
+
 const DOCS = '/docs'
 const REPO = 'https://github.com/equito-dev/equito-app'
 
-// Three pages, picked by path: / (home), /stats, /docs. Cloudflare serves index.html for every path.
+// Pages, picked by path: / (home), /stats, /docs and /docs/*. Cloudflare serves index.html for every path.
 export default function App() {
   const board = useBoard()
   const path = typeof window === 'undefined' ? '/' : window.location.pathname.replace(/\/+$/, '') || '/'
-  const page = path === '/stats' ? <StatsPage /> : path === '/docs' ? <DocsPage /> : null
+  const docs = path === '/docs' || path.startsWith('/docs/')
+  const page = path === '/stats' ? <StatsPage /> : docs ? <DocsPage slug={path.slice('/docs/'.length)} /> : null
   return (
     <div className="min-h-screen bg-paper">
       <Nav home={page === null} />
-      <TickerTape board={board} />
+      {!docs && <TickerTape board={board} />}
       {page ?? (
         <>
           <Hero />
           <Markets board={board} />
           <CodeSection />
+          <Agents />
           <Products />
           <Pricing />
           <Token address={TOKEN_ADDRESS} />
@@ -181,24 +183,24 @@ function Hero() {
         </p>
         <h1 className="mt-6 max-w-3xl text-5xl font-semibold leading-[0.98] tracking-[-0.045em] sm:text-7xl xl:text-[80px]">
           Every stock token.
-          <br className="hidden sm:block" /> One API call.
+          <br className="hidden sm:block" /> One call from your agent.
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
-          Live prices, the DEX premium over the real stock, SEC filings and ready-to-sign trades for every stock token on
-          Robinhood Chain. <span className="text-ink">{callPrice()} a call over x402. No key, no signup.</span>
+          Your AI agent looks up any stock token on Robinhood Chain, weighs its price against the real stock, reads the SEC
+          filings and builds the trade. You sign. <span className="text-ink">MCP, an agent skill or plain HTTP, {callPrice()} a call over x402.</span>
         </p>
         <div className="mt-9 flex flex-wrap gap-3">
-          <a href="#api" className="inline-flex items-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-medium text-white hover:bg-black">
-            Try a free call <ArrowRight size={15} />
+          <a href="/docs/agents" className="inline-flex items-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-medium text-white hover:bg-black">
+            Connect your agent <ArrowRight size={15} />
           </a>
-          <a href={DOCS} className="rounded-lg border border-line bg-white px-5 py-3 text-sm font-medium hover:border-ink/30">
-            Read the docs
+          <a href="#api" className="rounded-lg border border-line bg-white px-5 py-3 text-sm font-medium hover:border-ink/30">
+            Try a free call
           </a>
         </div>
         <div className="mt-14 grid max-w-2xl gap-6 sm:grid-cols-3">
-          <Feature icon={<Zap size={16} />} title={`${FREE_CALLS_PER_DAY} free calls a day`} sub={`Then ${callPrice()} per call`} />
-          <Feature icon={<Bot size={16} />} title="Agent ready" sub="x402 and MCP built in" />
-          <Feature icon={<KeyRound size={16} />} title="No keys, ever" sub="You sign every trade" />
+          <Feature icon={<Bot size={16} />} title="Speaks agent" sub="MCP, skills.sh, Hermes" />
+          <Feature icon={<Wallet size={16} />} title="Pays its own way" sub={`${FREE_CALLS_PER_DAY} free, then ${callPrice()} via x402`} />
+          <Feature icon={<KeyRound size={16} />} title="Never holds keys" sub="You sign every trade" />
         </div>
       </div>
     </section>
@@ -218,30 +220,45 @@ function Feature({ icon, title, sub }: { icon: React.ReactNode; title: string; s
 }
 
 const SAMPLES: Record<string, string> = {
-  cURL: `# Free: 50 calls a day per IP, no key
+  MCP: `# Claude Code
+claude mcp add --transport http equito ${API}/mcp
+
+# Cursor and most other clients: .cursor/mcp.json
+{
+  "mcpServers": {
+    "equito": { "url": "${API}/mcp" }
+  }
+}`,
+  'Agent skill': `# skills.sh: Claude Code, Cursor, Codex, Hermes and more
+npx skills add equito-dev/equito-app
+
+# Your agent now knows which call answers which question,
+# what each number means, and that trades come back unsigned.`,
+  Hermes: `# ~/.hermes/config.yaml
+mcp_servers:
+  equito:
+    url: "${API}/mcp"
+
+# then add the skill
+hermes skills install ${SITE}/SKILL.md`,
+  cURL: `# Free: ${FREE_CALLS_PER_DAY} calls a day per IP, no key
 curl ${API}/v1/stats/NVDA
 
-# Executable quote: buy $100 of NVDA with USDG
-curl "${API}/v1/quote?ticker=NVDA&amountUsd=100"
+# Real Uniswap quote: spend 100 USDG on NVDA
+curl "${API}/v1/quote?symbol=NVDA&side=buy&amount=100"
 
 # Unsigned approve + swap. You sign it, we never do.
 curl -X POST ${API}/v1/trade/build \\
-  -d '{"ticker":"NVDA","amountUsd":100,"recipient":"0x..."}'`,
-  'x402 agent': `// Past the free calls the API answers 402 with the price.
+  -H 'content-type: application/json' \\
+  -d '{"symbol":"NVDA","side":"buy","amount":"100","recipient":"0x..."}'`,
+  x402: `// Past the free calls the API answers 402 with the price.
 // Any x402 client pays ${callPrice()} in USDG on Robinhood Chain and retries.
 const res = await fetchWithPayment("${API}/v1/stats/NVDA")
 const stats = await res.json()
 
-stats.price        // token price on the DEX
-stats.equityPrice  // the real stock, times the multiplier
+stats.tokenPrice   // Robinhood's price for the token
+stats.dexPrice     // the deepest Uniswap pool
 stats.premiumPct   // how far the token trades from the stock`,
-  MCP: `{
-  "mcpServers": {
-    "equito": { "url": "${API}/mcp" }
-  }
-}
-// Tools: assets, prices, history, stats, research,
-// portfolio, corporate_actions, markets, quote, trade_build`,
 }
 
 function CodeSection() {
@@ -257,15 +274,15 @@ function CodeSection() {
   return (
     <section id="api" className="mx-auto grid max-w-7xl gap-12 px-4 py-24 sm:px-8 lg:grid-cols-[1fr_1.25fr] lg:items-center">
       <div>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">// One API</p>
+        <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">// Plug in</p>
         <h2 className="mt-4 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">
           Price it. Research it.
           <br />
           Trade it.
         </h2>
         <p className="mt-5 max-w-md text-lg leading-relaxed text-muted">
-          Eleven endpoints cover the whole job, from the token list to a swap your wallet only has to sign. Same answers
-          for a developer with cURL and an agent paying per call.
+          One server covers the whole job, from the token list to a swap your wallet only has to sign. Every endpoint is
+          also an MCP tool, so an agent gets the same answers a developer gets with cURL.
         </p>
         <ul className="mt-8 space-y-3 text-sm">
           {['Token registry straight from Robinhood', 'Prices from the Uniswap v3 pools on chain', 'Filings and fundamentals from SEC EDGAR'].map((t) => (
@@ -295,6 +312,53 @@ function CodeSection() {
         <pre className="overflow-x-auto p-5 font-mono leading-relaxed">
           <code>{SAMPLES[tab]}</code>
         </pre>
+      </div>
+    </section>
+  )
+}
+
+const AGENT_LOOP = [
+  { step: '01', name: 'Discover', body: 'llms.txt, OpenAPI, an agent card and the MCP tool list tell the agent what it can ask.' },
+  { step: '02', name: 'Call', body: 'Prices, premium, pool depth, filings, portfolios and launches, one tool per question.' },
+  { step: '03', name: 'Pay', body: `Past ${FREE_CALLS_PER_DAY} free calls the agent pays ${callPrice()} a call from its own wallet over x402. No account.` },
+  { step: '04', name: 'Act', body: 'A quote, then an unsigned approve and swap. A person checks it and signs. We never hold keys.' },
+]
+
+const WORKS_WITH = [
+  { name: 'Claude Code', logo: '/logos/claude.svg', href: '/docs/mcp' },
+  { name: 'Cursor', logo: '/logos/cursor.svg', href: '/docs/mcp' },
+  { name: 'Hermes Agent', logo: '/logos/hermes-agent.png', href: '/docs/hermes' },
+  { name: 'skills.sh', logo: '/logos/skills-sh.png', href: '/docs/skills' },
+]
+
+function Agents() {
+  return (
+    <section id="agents" className="mx-auto max-w-7xl px-4 py-24 sm:px-8">
+      <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted">// Built for agents</p>
+      <h2 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">
+        An agent can find it, use it and pay for it, without a person filling in a form.
+      </h2>
+      <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {AGENT_LOOP.map((s) => (
+          <div key={s.step} className="rounded-2xl border border-line bg-white p-7">
+            <p className="font-mono text-xs text-muted">{s.step}</p>
+            <h3 className="mt-6 text-lg font-semibold">{s.name}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted">{s.body}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-10 flex flex-col gap-5 rounded-2xl border border-line bg-white p-7 md:flex-row md:items-center md:justify-between">
+        <p className="text-sm text-muted">Works with the agents people use today</p>
+        <ul className="flex flex-wrap items-center gap-x-8 gap-y-4">
+          {WORKS_WITH.map((w) => (
+            <li key={w.name}>
+              <a href={w.href} className="flex items-center gap-2.5 text-sm font-medium hover:opacity-70">
+                <img src={w.logo} alt="" width={22} height={22} className="h-[22px] w-[22px] rounded-[5px] object-contain" />
+                {w.name}
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   )
@@ -334,7 +398,7 @@ function Products() {
 
 function Pricing() {
   const rows = [
-    ['Free', '50 calls a day per IP', 'No key, no wallet'],
+    ['Free', `${FREE_CALLS_PER_DAY} calls a day per IP`, 'No key, no wallet'],
     ['Per call', callPrice(), 'Paid in USDG over x402'],
     ['trade/build', callPrice(2), 'Unsigned approve + swap'],
   ]
@@ -413,7 +477,7 @@ function Closing() {
                 GitHub
               </a>
             </div>
-            <span className="font-mono text-xs text-muted">50 free calls a day · no key</span>
+            <span className="font-mono text-xs text-muted">{FREE_CALLS_PER_DAY} free calls a day · no key</span>
           </div>
         </div>
       </div>
