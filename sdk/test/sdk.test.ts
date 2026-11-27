@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { createApp, FreeTier, type Env } from "../../api/src/worker.ts";
-import { Equito, EquitoError, verifyWebhook } from "../src/index.ts";
+import { DEFAULT_BASE_URL, Equito, EquitoError, verifyWebhook } from "../src/index.ts";
 
 const PAY_TO = "0x759Cf0e19d45c1dCA28977703b69Fd93a3f6a136";
 const PAYER = "0x1111111111111111111111111111111111111111";
@@ -91,4 +91,16 @@ test("verifyWebhook accepts Equito's signature and rejects a changed body or an 
   assert.equal(await verifyWebhook(body, sig, secret, 300, t * 1000), true);
   assert.equal(await verifyWebhook(body + " ", sig, secret, 300, t * 1000), false);
   assert.equal(await verifyWebhook(body, sig, secret, 300, (t + 3600) * 1000), false);
+});
+
+test("the published package points at the live API and quotes the API's own prices", async () => {
+  const { API_URL } = await import("../../api/src/hosts.ts");
+  const { callPrice, FREE_CALLS_PER_DAY } = await import("../../api/src/x402.ts");
+  const { readFileSync } = await import("node:fs");
+  assert.equal(DEFAULT_BASE_URL, API_URL);
+  const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  assert.ok(readme.includes(`${FREE_CALLS_PER_DAY} calls a day per IP are free`));
+  assert.ok(readme.includes(`costs ${callPrice()} in USDG`));
+  assert.ok(readme.includes(`(${callPrice(2)} for\n\`buildTrade\`)`));
+  assert.ok(readme.includes(`MCP: ${API_URL}/mcp`));
 });

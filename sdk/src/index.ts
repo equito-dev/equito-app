@@ -1,4 +1,4 @@
-// Equito SDK: one small class over the Equito API (https://api.equito.pro). No dependencies, works in Node 18+,
+// Equito SDK: one small class over the Equito API (https://equito.pages.dev). No dependencies, works in Node 18+,
 // browsers, Deno, Bun and Workers.
 //
 //   import { Equito } from "equito";
@@ -10,7 +10,9 @@
 // the SDK signs and retries once for you: `pay` gets the payment terms and returns the base64 PAYMENT-SIGNATURE,
 // signed by your own wallet (any x402 client library can build it). Equito never sees or holds your keys.
 
-export const DEFAULT_BASE_URL = "https://api.equito.pro";
+// Same value as API_URL in api/src/hosts.ts (a test keeps them equal). The published package cannot import it, so the
+// address is written here too; on domain day change both and publish a new version.
+export const DEFAULT_BASE_URL = "https://equito.pages.dev";
 
 export type PaymentRequirements = {
   scheme: "exact";
