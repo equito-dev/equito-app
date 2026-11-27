@@ -5,7 +5,8 @@ import { useBoard, type Board, type BoardToken } from './data/board'
 import { StatsPage } from './pages/Stats'
 import { DocsPage } from './pages/Docs'
 
-const API = 'https://api.equito.pro'
+import { API_URL as API } from '../../api/src/hosts.ts'
+import { FREE_CALLS_PER_DAY, callPrice } from '../../api/src/x402.ts'
 const DOCS = '/docs'
 const REPO = 'https://github.com/equito-dev/equito-app'
 
@@ -184,7 +185,7 @@ function Hero() {
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
           Live prices, the DEX premium over the real stock, SEC filings and ready-to-sign trades for every stock token on
-          Robinhood Chain. <span className="text-ink">$0.01 a call over x402. No key, no signup.</span>
+          Robinhood Chain. <span className="text-ink">{callPrice()} a call over x402. No key, no signup.</span>
         </p>
         <div className="mt-9 flex flex-wrap gap-3">
           <a href="#api" className="inline-flex items-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-medium text-white hover:bg-black">
@@ -195,7 +196,7 @@ function Hero() {
           </a>
         </div>
         <div className="mt-14 grid max-w-2xl gap-6 sm:grid-cols-3">
-          <Feature icon={<Zap size={16} />} title="50 free calls a day" sub="Then $0.01 per call" />
+          <Feature icon={<Zap size={16} />} title={`${FREE_CALLS_PER_DAY} free calls a day`} sub={`Then ${callPrice()} per call`} />
           <Feature icon={<Bot size={16} />} title="Agent ready" sub="x402 and MCP built in" />
           <Feature icon={<KeyRound size={16} />} title="No keys, ever" sub="You sign every trade" />
         </div>
@@ -227,7 +228,7 @@ curl "${API}/v1/quote?ticker=NVDA&amountUsd=100"
 curl -X POST ${API}/v1/trade/build \\
   -d '{"ticker":"NVDA","amountUsd":100,"recipient":"0x..."}'`,
   'x402 agent': `// Past the free calls the API answers 402 with the price.
-// Any x402 client pays $0.01 in USDG on Robinhood Chain and retries.
+// Any x402 client pays ${callPrice()} in USDG on Robinhood Chain and retries.
 const res = await fetchWithPayment("${API}/v1/stats/NVDA")
 const stats = await res.json()
 
@@ -334,8 +335,8 @@ function Products() {
 function Pricing() {
   const rows = [
     ['Free', '50 calls a day per IP', 'No key, no wallet'],
-    ['Per call', '$0.01', 'Paid in USDG over x402'],
-    ['trade/build', '$0.02', 'Unsigned approve + swap'],
+    ['Per call', callPrice(), 'Paid in USDG over x402'],
+    ['trade/build', callPrice(2), 'Unsigned approve + swap'],
   ]
   return (
     <section id="pricing" className="mx-auto max-w-7xl px-4 py-24 sm:px-8">

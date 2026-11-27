@@ -1,5 +1,5 @@
 // Metering for every data endpoint: FREE_CALLS_PER_DAY free calls per caller IP per UTC day (one FreeTier Durable
-// Object per IP), then x402 v2 pay-per-call in USDG. A call costs `units` x $0.01 ($0.02 for trade/build).
+// Object per IP), then x402 v2 pay-per-call in USDG. A call costs `units` x UNIT_USD (trade/build is 2 units).
 // A free slot is taken first and given back unless the handler answered 2xx, so a typo or an upstream outage costs
 // nothing. On the paid path nothing is settled unless the handler answered 2xx.
 import { fail, json, withHeaders } from "./http.ts";

@@ -3,8 +3,9 @@
 // fails the table says so instead of showing anything made up.
 import { useEffect, useState } from 'react'
 
-// VITE_API_BASE overrides it (site/.env.development points at the temporary host until api.equito.pro is live).
-export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) || 'https://api.equito.pro'
+// The address lives in api/src/hosts.ts, shared with the API, so domain day is one change.
+import { API_URL } from '../../../api/src/hosts.ts'
+export const API_BASE: string = API_URL
 
 export type BoardToken = {
   symbol: string

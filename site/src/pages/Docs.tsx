@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { CATALOG, type Entry } from '../../../api/src/discovery.ts'
-import { FREE_CALLS_PER_DAY, UNIT_USD, USDG } from '../../../api/src/x402.ts'
+import { FREE_CALLS_PER_DAY, USDG, callPrice } from '../../../api/src/x402.ts'
 
-const API = 'https://api.equito.pro'
+import { API_URL as API } from '../../../api/src/hosts.ts'
 
 function CodeBlock({ code, label }: { code: string; label?: string }) {
   const [copied, setCopied] = useState(false)
@@ -25,7 +25,7 @@ function CodeBlock({ code, label }: { code: string; label?: string }) {
   )
 }
 
-const price = (e: Entry) => (e.units === 0 ? 'Free' : `$${(UNIT_USD * e.units).toFixed(2)}`)
+const price = (e: Entry) => (e.units === 0 ? 'Free' : callPrice(e.units))
 
 function example(e: Entry): string {
   const path = e.example.replace('{id}', 'al_…')
@@ -63,7 +63,7 @@ export function DocsPage() {
         <h1 className="mt-4 text-5xl font-semibold leading-[1.02] tracking-[-0.04em]">Build on stock tokens.</h1>
         <p className="mt-5 text-lg text-muted">
           One HTTP API for every stock token on Robinhood Chain. No key, no signup: {FREE_CALLS_PER_DAY} calls a day per IP are free, then
-          ${UNIT_USD.toFixed(2)} a call in USDG over x402. Machine-readable: <a className="underline" href={`${API}/openapi.json`}>openapi.json</a> and{' '}
+          {callPrice()} a call in USDG over x402. Machine-readable: <a className="underline" href={`${API}/openapi.json`}>openapi.json</a> and{' '}
           <a className="underline" href={`${API}/llms.txt`}>llms.txt</a>.
         </p>
 
@@ -80,7 +80,7 @@ export function DocsPage() {
           <h2 className="text-2xl font-semibold tracking-tight">Paying with x402</h2>
           <ol className="mt-4 list-decimal space-y-2 pl-5 text-muted">
             <li>The first {FREE_CALLS_PER_DAY} calls of the UTC day from your IP are free. The header <code className="font-mono text-sm">x-free-calls-left</code> counts down; only successful answers use a call.</li>
-            <li>After that a call answers <b className="text-ink">402</b> with the terms in the body and, base64, in the <code className="font-mono text-sm">PAYMENT-REQUIRED</code> header: USDG (<span className="font-mono text-sm">{USDG.slice(0, 10)}…</span>) on Robinhood Chain, scheme exact, ${UNIT_USD.toFixed(2)} per call ($0.02 for trade/build).</li>
+            <li>After that a call answers <b className="text-ink">402</b> with the terms in the body and, base64, in the <code className="font-mono text-sm">PAYMENT-REQUIRED</code> header: USDG (<span className="font-mono text-sm">{USDG.slice(0, 10)}…</span>) on Robinhood Chain, scheme exact, {callPrice()} per call ({callPrice(2)} for trade/build).</li>
             <li>Sign those terms with your wallet (any x402 client does it) and send the same request again with the payload in <code className="font-mono text-sm">PAYMENT-SIGNATURE</code>.</li>
             <li>You are charged only when the answer succeeds. It then carries <code className="font-mono text-sm">PAYMENT-RESPONSE</code> with the transaction.</li>
           </ol>

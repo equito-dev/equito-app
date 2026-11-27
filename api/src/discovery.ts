@@ -1,20 +1,21 @@
 // Agent discovery: GET /, /llms.txt, /openapi.json (also /v1/openapi.json) and /.well-known/x402.
 // Every document is built from CATALOG below and the real constants in x402.ts, so the docs cannot drift from the code.
 // Links use the origin the request came in on, so the same build works on api.equito.pro and the temporary host.
-import { DEFAULT_FACILITATOR, FREE_CALLS_PER_DAY, NETWORK, UNIT_AMOUNT, UNIT_USD, USDG, X402_VERSION, amountFor, requirementsFor } from "./x402.ts";
+import { SITE_URL } from "./hosts.ts";
+import { DEFAULT_FACILITATOR, FREE_CALLS_PER_DAY, NETWORK, UNIT_AMOUNT, UNIT_USD, USDG, X402_VERSION, amountFor, requirementsFor, callPrice } from "./x402.ts";
 import { json } from "./http.ts";
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const VERSION = "0.2.0";
 export const DESCRIPTION =
-  "Stock token data for AI agents on Robinhood Chain (chain 4663): every token, live prices, the DEX premium over the real stock, pool depth, candles, wallet portfolios, corporate actions, Uniswap quotes and unsigned trades. 50 free calls a day per IP, then $0.01 a call in USDG over x402. Equito never holds keys, signs or sends a transaction.";
+  `Stock token data for AI agents on Robinhood Chain (chain 4663): every token, live prices, the DEX premium over the real stock, pool depth, candles, wallet portfolios, corporate actions, Uniswap quotes and unsigned trades. ${FREE_CALLS_PER_DAY} free calls a day per IP, then ${callPrice()} a call in USDG over x402. Equito never holds keys, signs or sends a transaction.`;
 
 type Param = { name: string; in: "path" | "query"; required: boolean; description: string; example: string; enum?: string[] };
 export type Entry = {
   method: "GET" | "POST" | "DELETE";
   path: string; // under /v1
   summary: string;
-  units: number; // calls this costs; $0.01 each (0 = free)
+  units: number; // call units this costs, UNIT_USD each (0 = free)
   params?: Param[];
   body?: Record<string, unknown>; // JSON schema of a POST body
   example: string; // a concrete path (with query) that always works, used for the paid listing
@@ -103,7 +104,7 @@ export const CATALOG: Entry[] = [
 
 export const PAID_PREFIX = "/v1/paid";
 
-const priceText = (units: number) => `$${(UNIT_USD * units).toFixed(2)}`;
+const priceText = callPrice;
 
 export function apiIndex(origin: string) {
   return {
@@ -117,7 +118,7 @@ export function apiIndex(origin: string) {
     agentCard: origin + "/.well-known/agent.json",
     status: origin + "/status",
     mcp: origin + "/mcp",
-    docs: "https://docs.equito.pro",
+    docs: SITE_URL + "/docs",
   };
 }
 
@@ -199,7 +200,7 @@ export function agentCard(origin: string) {
       { url: origin + "/v1", transport: "HTTP+JSON" },
       { url: origin + "/mcp", transport: "MCP-STREAMABLE-HTTP" },
     ],
-    provider: { organization: "Equito", url: "https://equito.pro" },
+    provider: { organization: "Equito", url: SITE_URL },
     version: VERSION,
     documentationUrl: origin + "/llms.txt",
     capabilities: { streaming: false, pushNotifications: false, stateTransitionHistory: false },

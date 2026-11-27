@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "include": [
+    "/v1",
+    "/v1/*",
+    "/mcp",
+    "/llms.txt",
+    "/openapi.json",
+    "/.well-known/*",
+    "/status",
+    "/health",
+    "/public/*",
+    "/internal/*"
+  ],
+  "exclude": []
+}

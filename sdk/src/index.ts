@@ -15,7 +15,7 @@ export const DEFAULT_BASE_URL = "https://api.equito.pro";
 export type PaymentRequirements = {
   scheme: "exact";
   network: string; // eip155:4663
-  amount: string; // base units of USDG (6 decimals): 10000 = $0.01
+  amount: string; // base units of USDG (6 decimals): 20000 = $0.02
   asset: string;
   payTo: string;
   maxTimeoutSeconds: number;

@@ -63,7 +63,7 @@ test("API errors become EquitoError with the API's code", async () => {
 test("past the free calls: EquitoError 402 with the terms when no pay function is given", async () => {
   const eq = client();
   for (let i = 0; i < 50; i++) await eq.assets();
-  await assert.rejects(eq.assets(), (e: unknown) => e instanceof EquitoError && e.status === 402 && e.paymentRequired?.accepts[0].amount === "10000");
+  await assert.rejects(eq.assets(), (e: unknown) => e instanceof EquitoError && e.status === 402 && e.paymentRequired?.accepts[0].amount === "20000");
 });
 
 test("with pay, the SDK signs through your function and retries once; the answer carries the payment receipt", async () => {
@@ -78,7 +78,7 @@ test("with pay, the SDK signs through your function and retries once; the answer
   for (let i = 0; i < 50; i++) await eq.assets();
   const assets = await eq.assets();
   assert.equal(assets.length, 1);
-  assert.deepEqual(seen, ["10000"]);
+  assert.deepEqual(seen, ["20000"]);
   assert.ok(eq.last.paymentResponse);
   assert.equal(JSON.parse(atob(eq.last.paymentResponse!)).transaction, "0xfeed");
 });

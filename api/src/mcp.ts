@@ -2,6 +2,7 @@
 // answer (no sessions, no SSE); GET and DELETE are 405. Older clients still send batches, so arrays are answered.
 // One tool per REST endpoint, built from CATALOG, so tools and docs cannot drift. Tools call the REST API through
 // `callApi` with the caller's cf-connecting-ip, so the free tier counts the real caller and payment works the same.
+import { FREE_CALLS_PER_DAY, callPrice } from "./x402.ts";
 import { CATALOG, DESCRIPTION, type Entry } from "./discovery.ts";
 
 export const MAX_MCP_BODY_BYTES = 64 * 1024;
@@ -43,7 +44,7 @@ function inputSchema(e: Entry): Schema {
 const priceNote = (e: Entry) => (e.units === 1 ? "1 call" : `${e.units} calls`);
 export const TOOLS = CATALOG.map((e) => ({
   name: e.tool,
-  description: e.units === 0 ? e.summary : `${e.summary} Costs ${priceNote(e)} (50 free a day, then $0.01 each in USDG over x402).`,
+  description: e.units === 0 ? e.summary : `${e.summary} Costs ${priceNote(e)} (${FREE_CALLS_PER_DAY} free a day, then ${callPrice()} each in USDG over x402).`,
   inputSchema: inputSchema(e),
 })).concat([{ name: "get_pricing", description: "Price per call, free calls per day, asset, network, payTo and facilitator. Free.", inputSchema: { type: "object", properties: {}, required: [], additionalProperties: false } }]);
 

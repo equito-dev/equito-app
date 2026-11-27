@@ -41,8 +41,8 @@ test("llms.txt, openapi.json and the index describe every endpoint with links on
   const spec = (await (await app(get("/openapi.json"), env())).json()) as any;
   assert.equal(spec.openapi, "3.1.0");
   assert.equal(spec.servers[0].url, "https://api.equito.pro");
-  assert.equal(spec.paths["/v1/trade/build"].post["x-payment"].amount, "20000");
-  assert.equal(spec.paths["/v1/stats/{symbol}"].get["x-payment"].amount, "10000");
+  assert.equal(spec.paths["/v1/trade/build"].post["x-payment"].amount, "40000");
+  assert.equal(spec.paths["/v1/stats/{symbol}"].get["x-payment"].amount, "20000");
   const index = (await (await app(get("/"), env())).json()) as any;
   assert.equal(index.mcp, "https://api.equito.pro/mcp");
 });
@@ -52,7 +52,7 @@ test("the x402 listing points at the paid paths, and is empty until a pay-to wal
   assert.equal(listing.items.length, CATALOG.filter((e) => e.units > 0).length);
   assert.ok(!listing.resources.some((r: string) => r.includes("{id}")));
   assert.ok(listing.resources.every((r: string) => r.startsWith("https://api.equito.pro/v1/paid/")));
-  assert.equal(listing.items.find((i: any) => i.resource.endsWith("/trade/build")).accepts[0].amount, "20000");
+  assert.equal(listing.items.find((i: any) => i.resource.endsWith("/trade/build")).accepts[0].amount, "40000");
   const off = (await (await app(get("/.well-known/x402"), {})).json()) as any;
   assert.deepEqual(off.resources, []);
 });
@@ -92,7 +92,7 @@ test("MCP: past the free calls a tool answers with payment instructions and the 
   const r = (await (await app(rpc({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_assets", arguments: {} } }), e)).json()) as any;
   assert.equal(r.result.isError, true);
   assert.match(r.result.content[0].text, /payment_signature/);
-  assert.equal(r.result.structuredContent.accepts[0].amount, "10000");
+  assert.equal(r.result.structuredContent.accepts[0].amount, "20000");
 });
 
 test("MCP transport: notifications get 202, GET is 405, bad JSON is a parse error", async () => {

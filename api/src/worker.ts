@@ -1,5 +1,5 @@
-// Equito API Worker (api.equito.pro). Free: /, /health, /v1/pricing. Metered (50 free a day per IP, then $0.01 a call
-// over x402, $0.02 for trade/build): everything else under /v1.
+// Equito API Worker (api.equito.pro). Free: /, /health, /v1/pricing. Metered (50 free a day per IP, then UNIT_USD a call
+// over x402, twice that for trade/build): everything else under /v1.
 import { ApiError, CORS, fail, json } from "./http.ts";
 import { Chain, rpcUrls } from "./chain.ts";
 import { holderCheck, holderConfig } from "./holder.ts";

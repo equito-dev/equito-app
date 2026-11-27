@@ -4,8 +4,10 @@
 //   npx wrangler secret put RPC_URLS         private Robinhood Chain nodes, comma separated (Chainstack, Alchemy); tried in
 //                                            turn on a 429. The public node is always the last resort.
 //   npx wrangler secret put INGEST_KEY       shared with the GitHub Actions collector; guards POST /internal/snapshot.
+//   npx wrangler secret put X402_PAY_TO      the wallet (0x...) that receives paid calls; must be the wallet registered
+//                                            as the Priors merchant. A secret, not a var, so the owner's address stays
+//                                            out of the public repo (it is still visible in each 402 answer).
 // Plain vars, under "vars" below:
-//   X402_PAY_TO        the wallet (0x...) that receives paid calls; must be the wallet registered as the Priors merchant.
 //   FACILITATOR_URL    optional, default https://facilitator.priors.trade
 //   HOLDER_TOKEN / HOLDER_MIN   set after the $EQUITO launch: holders of HOLDER_MIN base units pay half.
 //   CONTACT_EMAIL      the product contact email SEC EDGAR requires in the User-Agent (never a personal address);
@@ -15,10 +17,10 @@
   "name": "equito-api",
   "main": "./src/worker.ts",
   "compatibility_date": "2026-11-01",
-  "workers_dev": true,
-  // TEMPORARY (2026-11-25): *.workers.dev is blocked by networks in Indonesia, so the API is tested on a subdomain of
-  // the old reinkeep.xyz zone. Switch to api.equito.pro once that domain is on Cloudflare, then drop this route.
-  "routes": [{ "pattern": "equito-api.reinkeep.xyz", "custom_domain": true }],
+  // No public address of its own: until equito.pro is bought, the Pages project "equito" (site/wrangler.jsonc) passes
+  // the API paths to this Worker over a service binding, so the API is https://equito.pages.dev. On domain day add
+  // "routes": [{ "pattern": "api.equito.pro", "custom_domain": true }].
+  "workers_dev": false,
   "preview_urls": false,
   "observability": { "enabled": true },
   "vars": {},
