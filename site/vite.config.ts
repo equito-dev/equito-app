@@ -8,8 +8,7 @@ import { defineConfig, type Plugin } from 'vite'
 // description links in <head>, and a <noscript> block next to the root div with the code, the API, the docs, the MCP
 // server, the SDK and, once the token exists, its contract address. The CA comes from src/data/token.ts, the same
 // single setting the pages use, so launch day stays one change. Visitors with JavaScript never see the block.
-const SITE = 'https://equito.pro'
-const API = 'https://api.equito.pro'
+import { API_URL as API, SITE_URL as SITE } from '../api/src/hosts.ts'
 const REPO = 'https://github.com/equito-dev/equito-app'
 const EXPLORER = 'https://robinhoodchain.blockscout.com/token/'
 const ROOT = '<div id="root"></div>'

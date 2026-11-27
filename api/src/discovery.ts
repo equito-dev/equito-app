@@ -1,6 +1,7 @@
 // Agent discovery: GET /, /llms.txt, /openapi.json (also /v1/openapi.json) and /.well-known/x402.
 // Every document is built from CATALOG below and the real constants in x402.ts, so the docs cannot drift from the code.
 // Links use the origin the request came in on, so the same build works on api.equito.pro and the temporary host.
+import { SITE_URL } from "./hosts.ts";
 import { DEFAULT_FACILITATOR, FREE_CALLS_PER_DAY, NETWORK, UNIT_AMOUNT, UNIT_USD, USDG, X402_VERSION, amountFor, requirementsFor } from "./x402.ts";
 import { json } from "./http.ts";
 
@@ -117,7 +118,7 @@ export function apiIndex(origin: string) {
     agentCard: origin + "/.well-known/agent.json",
     status: origin + "/status",
     mcp: origin + "/mcp",
-    docs: "https://docs.equito.pro",
+    docs: SITE_URL + "/docs",
   };
 }
 
@@ -199,7 +200,7 @@ export function agentCard(origin: string) {
       { url: origin + "/v1", transport: "HTTP+JSON" },
       { url: origin + "/mcp", transport: "MCP-STREAMABLE-HTTP" },
     ],
-    provider: { organization: "Equito", url: "https://equito.pro" },
+    provider: { organization: "Equito", url: SITE_URL },
     version: VERSION,
     documentationUrl: origin + "/llms.txt",
     capabilities: { streaming: false, pushNotifications: false, stateTransitionHistory: false },

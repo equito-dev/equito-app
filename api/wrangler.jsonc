@@ -15,10 +15,10 @@
   "name": "equito-api",
   "main": "./src/worker.ts",
   "compatibility_date": "2026-11-01",
-  "workers_dev": true,
-  // TEMPORARY (2026-11-25): *.workers.dev is blocked by networks in Indonesia, so the API is tested on a subdomain of
-  // the old reinkeep.xyz zone. Switch to api.equito.pro once that domain is on Cloudflare, then drop this route.
-  "routes": [{ "pattern": "equito-api.reinkeep.xyz", "custom_domain": true }],
+  // No public address of its own: until equito.pro is bought, the Pages project "equito" (site/wrangler.jsonc) passes
+  // the API paths to this Worker over a service binding, so the API is https://equito.pages.dev. On domain day add
+  // "routes": [{ "pattern": "api.equito.pro", "custom_domain": true }].
+  "workers_dev": false,
   "preview_urls": false,
   "observability": { "enabled": true },
   "vars": {},

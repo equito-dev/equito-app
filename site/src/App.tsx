@@ -5,7 +5,7 @@ import { useBoard, type Board, type BoardToken } from './data/board'
 import { StatsPage } from './pages/Stats'
 import { DocsPage } from './pages/Docs'
 
-const API = 'https://api.equito.pro'
+import { API_URL as API } from '../../api/src/hosts.ts'
 const DOCS = '/docs'
 const REPO = 'https://github.com/equito-dev/equito-app'
 

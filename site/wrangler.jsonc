@@ -1,0 +1,9 @@
+// Cloudflare Pages project "equito" (https://equito.pages.dev): the site, plus the API paths in public/_routes.json,
+// which functions/[[path]].ts passes to the equito-api Worker. Deploy from this folder:
+//   npm run build && npx wrangler pages deploy dist --project-name equito --branch main
+{
+  "name": "equito",
+  "pages_build_output_dir": "dist",
+  "compatibility_date": "2026-11-01",
+  "services": [{ "binding": "API", "service": "equito-api" }]
+}

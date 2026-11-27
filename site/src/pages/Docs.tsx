@@ -5,7 +5,7 @@ import { Check, Copy } from 'lucide-react'
 import { CATALOG, type Entry } from '../../../api/src/discovery.ts'
 import { FREE_CALLS_PER_DAY, UNIT_USD, USDG } from '../../../api/src/x402.ts'
 
-const API = 'https://api.equito.pro'
+import { API_URL as API } from '../../../api/src/hosts.ts'
 
 function CodeBlock({ code, label }: { code: string; label?: string }) {
   const [copied, setCopied] = useState(false)

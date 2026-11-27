@@ -1,7 +1,7 @@
 // node collector/run.ts   (from equito/api; GitHub Actions runs it on a schedule)
 // Environment:
 //   INGEST_KEY  required, the same value as the Worker secret INGEST_KEY
-//   API_BASE    optional, default https://api.equito.pro (the temporary test host is https://equito-api.reinkeep.xyz)
+//   API_BASE    optional, default https://api.equito.pro (until the domain is bought: https://equito.pages.dev)
 //   RPC_URLS    optional, private nodes comma separated (Chainstack, Alchemy); the public node is always last
 // Locally it also reads the owner's global ~/.config/tech-coin/secrets.env (ROBINHOOD_RPC_CHAINSTACK,
 // ROBINHOOD_RPC_ALCHEMY). Node URLs carry API keys, so nothing here ever prints them.
