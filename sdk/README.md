@@ -46,7 +46,7 @@ left today.
 
 ## Paying
 
-50 calls a day per IP are free. After that each call costs $0.01 in USDG on Robinhood Chain over x402 ($0.02 for
+50 calls a day per IP are free. After that each call costs $0.02 in USDG on Robinhood Chain over x402 ($0.02 for
 `buildTrade`). Hand the client a `pay` function and it signs and retries once for you:
 
 ```ts

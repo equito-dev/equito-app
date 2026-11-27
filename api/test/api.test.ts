@@ -143,7 +143,7 @@ test("an upstream outage is a 502 and gives the free slot back", async () => {
   assert.equal(res.headers.get("x-free-calls-left"), String(FREE_CALLS_PER_DAY));
 });
 
-test("past the free calls: 402 with the x402 offer for $0.01 in USDG on 4663", async () => {
+test("past the free calls: 402 with the x402 offer for $0.02 in USDG on 4663", async () => {
   const { f } = fakeFetch();
   const app = createApp({ fetch: f });
   const env = paidEnv();
@@ -151,7 +151,7 @@ test("past the free calls: 402 with the x402 offer for $0.01 in USDG on 4663", a
   const res = await app(get("/v1/assets"), env);
   assert.equal(res.status, 402);
   const offer = (fromBase64(res.headers.get("payment-required")!) as any).accepts[0];
-  assert.equal(offer.amount, "10000");
+  assert.equal(offer.amount, "20000");
   assert.equal(offer.asset, USDG);
   assert.equal(offer.network, "eip155:4663");
   assert.equal(offer.payTo, PAY_TO);
@@ -221,11 +221,11 @@ test("holders pay half, and only from their own wallet", async () => {
   await useFreeCalls(app, env);
   const quote = await app(get("/v1/assets", { "x-holder": HOLDER }), env);
   const offer = ((await quote.json()) as any).accepts[0];
-  assert.equal(offer.amount, "5000");
+  assert.equal(offer.amount, "10000");
   // The facilitator says someone else paid: full price again, nothing served.
   const res = await app(get("/v1/assets", { "x-holder": HOLDER, "payment-signature": paymentFor(offer) }), env);
   assert.equal(res.status, 402);
-  assert.equal(((await res.json()) as any).accepts[0].amount, "10000");
+  assert.equal(((await res.json()) as any).accepts[0].amount, "20000");
 });
 
 test("pricing, health and the index are free", async () => {
@@ -234,7 +234,7 @@ test("pricing, health and the index are free", async () => {
   const env = paidEnv();
   const p = (await (await app(get("/v1/pricing"), env)).json()) as any;
   assert.equal(p.freeCallsPerDay, 50);
-  assert.equal(p.tradeBuildPriceUsd, 0.02);
+  assert.equal(p.tradeBuildPriceUsd, 0.04);
   assert.equal(p.holder, null);
   assert.equal((await app(get("/health"), env)).status, 200);
   assert.equal((await app(get("/nope"), env)).status, 404);

@@ -9,6 +9,7 @@ import { defineConfig, type Plugin } from 'vite'
 // server, the SDK and, once the token exists, its contract address. The CA comes from src/data/token.ts, the same
 // single setting the pages use, so launch day stays one change. Visitors with JavaScript never see the block.
 import { API_URL as API, SITE_URL as SITE } from '../api/src/hosts.ts'
+import { FREE_CALLS_PER_DAY, callPrice } from '../api/src/x402.ts'
 const REPO = 'https://github.com/equito-dev/equito-app'
 const EXPLORER = 'https://robinhoodchain.blockscout.com/token/'
 const ROOT = '<div id="root"></div>'
@@ -34,7 +35,7 @@ export function projectFacts(ca: string): string {
     : ''
   return [
     '<noscript>',
-    '<p>Equito: stock token data for AI agents and developers on Robinhood Chain (chain id 4663). Every stock token, live prices, the DEX premium over the real stock, Uniswap pool depth, candles, wallet portfolios, corporate actions, SEC research, Pons launches, webhook alerts, Uniswap quotes and unsigned trades. 50 free calls a day per IP, then $0.01 a call in USDG over x402. Equito never holds keys, signs or sends a transaction.</p>',
+    `<p>Equito: stock token data for AI agents and developers on Robinhood Chain (chain id 4663). Every stock token, live prices, the DEX premium over the real stock, Uniswap pool depth, candles, wallet portfolios, corporate actions, SEC research, Pons launches, webhook alerts, Uniswap quotes and unsigned trades. ${FREE_CALLS_PER_DAY} free calls a day per IP, then ${callPrice()} a call in USDG over x402. Equito never holds keys, signs or sends a transaction.</p>`,
     `<p>Code: <a href="${REPO}">${REPO}</a>. API: <a href="${API}">${API}</a>, <a href="${API}/openapi.json">OpenAPI</a>, <a href="${API}/llms.txt">llms.txt</a>, <a href="${API}/.well-known/x402">x402 listing</a>. MCP server: ${API}/mcp. SDK: npm install equito. Docs: <a href="${SITE}/docs">${SITE}/docs</a>. Market stats: <a href="${SITE}/stats">${SITE}/stats</a>.</p>`,
     token,
     '</noscript>',

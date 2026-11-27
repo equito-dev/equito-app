@@ -4,8 +4,10 @@
 //   npx wrangler secret put RPC_URLS         private Robinhood Chain nodes, comma separated (Chainstack, Alchemy); tried in
 //                                            turn on a 429. The public node is always the last resort.
 //   npx wrangler secret put INGEST_KEY       shared with the GitHub Actions collector; guards POST /internal/snapshot.
+//   npx wrangler secret put X402_PAY_TO      the wallet (0x...) that receives paid calls; must be the wallet registered
+//                                            as the Priors merchant. A secret, not a var, so the owner's address stays
+//                                            out of the public repo (it is still visible in each 402 answer).
 // Plain vars, under "vars" below:
-//   X402_PAY_TO        the wallet (0x...) that receives paid calls; must be the wallet registered as the Priors merchant.
 //   FACILITATOR_URL    optional, default https://facilitator.priors.trade
 //   HOLDER_TOKEN / HOLDER_MIN   set after the $EQUITO launch: holders of HOLDER_MIN base units pay half.
 //   CONTACT_EMAIL      the product contact email SEC EDGAR requires in the User-Agent (never a personal address);

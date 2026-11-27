@@ -7,8 +7,9 @@
 export const X402_VERSION = 2;
 export const NETWORK = "eip155:4663";
 export const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
-export const UNIT_AMOUNT = "10000"; // 6 decimals, so $0.01 per call unit
-export const UNIT_USD = 0.01;
+export const UNIT_USD = 0.02; // the one price setting, per call unit; trade/build is 2 units, holders pay half
+export const UNIT_AMOUNT = String(Math.round(UNIT_USD * 1e6)); // USDG base units (6 decimals)
+export const callPrice = (units = 1): string => `$${(UNIT_USD * units).toFixed(2)}`;
 export const FREE_CALLS_PER_DAY = 50;
 export const DEFAULT_FACILITATOR = "https://facilitator.priors.trade";
 
