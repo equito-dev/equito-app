@@ -150,3 +150,20 @@ test("GET /public/overview sums the market and lists premiums only from deep poo
   assert.ok(!b.premiums.some((t: any) => t.symbol === "THIN"));
   assert.equal(b.deepest[0].symbol, "NVDA");
 });
+
+// Outside market hours a token can have a pool but no Robinhood price (wide bid/ask): its pool still counts and
+// still ranks by depth, it just has no premium.
+test("GET /public/overview keeps a pool with no Robinhood price in the pool count and the depth list", async () => {
+  const env: Env = { DB: fakeD1(), INGEST_KEY: KEY };
+  await createApp({ fetch: noFetch, now: () => NOW })(snapshot({ ts: NOW, rows: [
+    row("NVDA", 150, { premiumPct: 0.2, liquidityUsd: 2_000_000 }),
+    row("GLD", 1, { tokenPrice: null, dexPrice: 335, premiumPct: null, liquidityUsd: 1_837_019 }),
+    row("TSLA", 300, { premiumPct: -1.5, liquidityUsd: 500_000 }),
+  ] }), env);
+  const b = (await (await createApp({ fetch: noFetch, now: () => NOW })(new Request("https://api.equito.pro/public/overview"), env)).json()) as any;
+  assert.equal(b.totals.tokensWithPool, 3);
+  assert.deepEqual(b.deepest.map((t: any) => t.symbol), ["NVDA", "GLD", "TSLA"]);
+  assert.equal(b.deepest[1].tokenPrice, null);
+  assert.ok(![...b.premiums, ...b.discounts].some((t: any) => t.symbol === "GLD"));
+  assert.equal(b.totals.medianPremiumPct, -0.65);
+});

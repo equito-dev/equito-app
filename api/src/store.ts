@@ -306,7 +306,10 @@ export async function getBoard(db: D1Like | undefined, now: () => number): Promi
 export async function getOverview(db: D1Like | undefined, now: () => number): Promise<Response> {
   if (!db) throw new ApiError(503, "data_off", "Market data is not set up on this server.");
   const { results: all } = await db.prepare("SELECT * FROM token_stats").all<StatsDb>();
-  const priced = all.filter((r) => r.dex_price !== null && r.token_price !== null && r.premium_pct !== null);
+  // A pool counts and ranks by depth on its own; only the premium needs Robinhood's price, which is missing while its
+  // bid/ask is too wide (outside US market hours).
+  const pooled = all.filter((r) => r.dex_price !== null);
+  const priced = pooled.filter((r) => r.token_price !== null && r.premium_pct !== null);
   const liquidity = all.reduce((s, r) => s + (r.liquidity_usd ?? 0), 0);
   const deep = priced.filter((r) => (r.liquidity_usd ?? 0) >= 10_000); // premiums of thin pools say little
   const median = (xs: number[]) => {
@@ -330,12 +333,12 @@ export async function getOverview(db: D1Like | undefined, now: () => number): Pr
       updatedAt: updated ? new Date(updated).toISOString() : null,
       totals: {
         tokens: all.length,
-        tokensWithPool: priced.length,
+        tokensWithPool: pooled.length,
         liquidityUsd: Math.round(liquidity),
         medianPremiumPct: round(median(deep.map((r) => r.premium_pct!)), 4),
         launches24h: launches?.n ?? 0,
       },
-      deepest: [...priced].sort((a, b) => (b.liquidity_usd ?? 0) - (a.liquidity_usd ?? 0)).slice(0, 8).map(brief),
+      deepest: [...pooled].sort((a, b) => (b.liquidity_usd ?? 0) - (a.liquidity_usd ?? 0)).slice(0, 8).map(brief),
       premiums: byPremium.slice(0, 5).map(brief),
       discounts: byPremium.slice(-5).reverse().map(brief),
       newestLaunches: newest.map((l) => ({ token: l.token, symbol: l.symbol, name: l.name, createdAt: new Date(l.created_at).toISOString() })),

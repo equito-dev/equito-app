@@ -2,6 +2,7 @@
 // Every document is built from CATALOG below and the real constants in x402.ts, so the docs cannot drift from the code.
 // Links use the origin the request came in on, so the same build works on api.equito.pro and the temporary host.
 import { SITE_URL } from "./hosts.ts";
+import { MAX_SPREAD_PCT } from "./robinhood.ts";
 import { DEFAULT_FACILITATOR, FREE_CALLS_PER_DAY, NETWORK, UNIT_AMOUNT, UNIT_USD, USDG, X402_VERSION, amountFor, requirementsFor, callPrice } from "./x402.ts";
 import { json } from "./http.ts";
 
@@ -155,9 +156,9 @@ ${lines}
 - Holders of the $EQUITO token pay half once the token is live: send x-holder: <your address> and pay from that address.
 
 ## Numbers
-- tokenPrice is Robinhood's price for one token (its own token bid/ask, already times the multiplier).
+- tokenPrice is Robinhood's price for one token (the middle of its own token bid/ask, already times the multiplier). It is null when the bid/ask spread (spreadPct) is wider than ${MAX_SPREAD_PCT}%, which happens outside US market hours; priceNote then says so.
 - dexPrice is the deepest Uniswap v3 USDG pool. A pool counts only with in-range liquidity, both tokens inside and a price within 10x of Robinhood's.
-- premiumPct = dexPrice / tokenPrice - 1, in percent. Positive means the token costs more on chain.
+- premiumPct = dexPrice / tokenPrice - 1, in percent. Positive means the token costs more on chain. null whenever tokenPrice is null.
 - /stats and /history come from a collector that runs about once an hour; every answer says when (updatedAt).
 
 ## Safety
