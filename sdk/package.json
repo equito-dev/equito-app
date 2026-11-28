@@ -7,14 +7,15 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist", "README.md"],
+  "files": ["dist", "README.md", "LICENSE"],
   "sideEffects": false,
   "engines": { "node": ">=18" },
   "keywords": ["robinhood-chain", "tokenized-stocks", "stock-tokens", "x402", "uniswap", "ai-agents", "api"],
-  "repository": { "type": "git", "url": "https://github.com/equito-dev/equito-app", "directory": "sdk" },
-  "homepage": "https://equito.pro",
+  "repository": { "type": "git", "url": "git+https://github.com/equito-dev/equito-app.git", "directory": "sdk" },
+  "homepage": "https://equito.pages.dev/docs/sdk",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build && npm test",
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },

@@ -46,7 +46,7 @@ left today.
 
 ## Paying
 
-50 calls a day per IP are free. After that each call costs $0.02 in USDG on Robinhood Chain over x402 ($0.02 for
+50 calls a day per IP are free. After that each call costs $0.02 in USDG on Robinhood Chain over x402 ($0.04 for
 `buildTrade`). Hand the client a `pay` function and it signs and retries once for you:
 
 ```ts
@@ -79,7 +79,7 @@ const ok = await verifyWebhook(rawBody, request.headers.get("equito-signature")!
 
 ## Links
 
-API: https://api.equito.pro · MCP: https://api.equito.pro/mcp · OpenAPI: https://api.equito.pro/openapi.json ·
-llms.txt: https://api.equito.pro/llms.txt
+Docs: https://equito.pages.dev/docs · API: https://equito.pages.dev · MCP: https://equito.pages.dev/mcp ·
+OpenAPI: https://equito.pages.dev/openapi.json · llms.txt: https://equito.pages.dev/llms.txt
 
 Data, not investment advice.
