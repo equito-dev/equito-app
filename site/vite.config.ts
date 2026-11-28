@@ -37,7 +37,7 @@ export function projectFacts(ca: string): string {
   return [
     '<noscript>',
     `<p>Equito: stock token data for AI agents and developers on Robinhood Chain (chain id 4663). Every stock token, live prices, the DEX premium over the real stock, Uniswap pool depth, candles, wallet portfolios, corporate actions, SEC research, Pons launches, webhook alerts, Uniswap quotes and unsigned trades. ${FREE_CALLS_PER_DAY} free calls a day per IP, then ${callPrice()} a call in USDG over x402. Equito never holds keys, signs or sends a transaction.</p>`,
-    `<p>Code: <a href="${REPO}">${REPO}</a>. API: <a href="${API}">${API}</a>, <a href="${API}/openapi.json">OpenAPI</a>, <a href="${API}/llms.txt">llms.txt</a>, <a href="${API}/.well-known/x402">x402 listing</a>. MCP server: ${API}/mcp. Agent skill: npx skills add equito-dev/equito-app. TypeScript SDK: ${REPO}/tree/main/sdk. Docs: <a href="${SITE}/docs">${SITE}/docs</a>. Market stats: <a href="${SITE}/stats">${SITE}/stats</a>.</p>`,
+    `<p>Code: <a href="${REPO}">${REPO}</a>. API: <a href="${API}">${API}</a>, <a href="${API}/openapi.json">OpenAPI</a>, <a href="${API}/llms.txt">llms.txt</a>, <a href="${API}/.well-known/x402">x402 listing</a>. MCP server: ${API}/mcp. Agent skill: npx skills add equito-dev/equito-app. TypeScript SDK: npm install equito (<a href="https://www.npmjs.com/package/equito">npm</a>, <a href="${REPO}/tree/main/sdk">source</a>). Docs: <a href="${SITE}/docs">${SITE}/docs</a>. Market stats: <a href="${SITE}/stats">${SITE}/stats</a>.</p>`,
     token,
     '</noscript>',
   ]

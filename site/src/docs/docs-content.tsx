@@ -353,10 +353,11 @@ export const GROUPS: DocGroup[] = [
         lead: 'No dependencies. Node 18+, browsers, Deno, Bun and Workers.',
         body: () => (
           <>
-            <Note>
-              The package is not on npm yet. Until it is, copy <A href={`${REPO}/tree/main/sdk`}>sdk/</A> from the repo, or call the
-              API over HTTP or MCP: the answers are the same. Once published it installs with <C>npm install equito</C>.
-            </Note>
+            <Block label="shell" code="npm install equito" />
+            <P>
+              The package is <A href="https://www.npmjs.com/package/equito">equito on npm</A>, source in <A href={`${REPO}/tree/main/sdk`}>sdk/</A>.
+              It calls the same API as HTTP and MCP, so the answers match.
+            </P>
             <Block label="ts" code={`import { Equito } from "equito";
 
 const eq = new Equito({
