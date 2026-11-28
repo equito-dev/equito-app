@@ -1,6 +1,6 @@
 {
   "name": "equito",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Stock token data on Robinhood Chain: prices, DEX premium, pools, candles, portfolios, SEC research, Uniswap quotes and unsigned trades. Pays per call over x402 when you hand it a signer.",
   "license": "MIT",
   "type": "module",
