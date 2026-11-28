@@ -400,10 +400,11 @@ const trade = await eq.buildTrade({ symbol: "NVDA", side: "buy", amount: 100, re
         lead: 'Where each figure comes from, and when it can mislead.',
         body: () => (
           <Table head={['Field', 'Meaning']} rows={[
-            [<C>tokenPrice</C>, "Robinhood's own price for one token: its token bid/ask, already times the multiplier."],
+            [<C>tokenPrice</C>, "Robinhood's own price for one token: the middle of its token bid/ask, already times the multiplier. null when the bid/ask spread is wider than 5%, which happens outside US market hours; priceNote then says so."],
+            [<C>spreadPct</C>, "How far apart Robinhood's bid and ask are, in percent. Under 1% in market hours; tens of percent when the market is closed."],
             [<C>dexPrice</C>, "The deepest Uniswap v3 USDG pool. A pool counts only with in-range liquidity, both tokens inside and a price within 10x of Robinhood's."],
-            [<C>premiumPct</C>, 'dexPrice against tokenPrice, in percent. Positive means the token costs more on chain. Outside US market hours the two can drift apart.'],
-            [<C>liquidityUsd</C>, "Every USDG pool of the token, both sides, valued at Robinhood's price."],
+            [<C>premiumPct</C>, 'dexPrice against tokenPrice, in percent. Positive means the token costs more on chain. null whenever tokenPrice is null.'],
+            [<C>liquidityUsd</C>, "Every USDG pool of the token, both sides, valued at Robinhood's price, or at the pool's own price when Robinhood has none."],
             ['Lists, candles, launches', 'From a collector that reads the chain about once an hour; each answer says when.'],
           ]} />
         ),

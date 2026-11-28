@@ -112,6 +112,25 @@ export function parseQuote(symbol: string, raw: unknown): Quote | null {
   };
 }
 
+// Above this bid/ask spread Robinhood's midpoint is not a price: outside US market hours the quote opens up (GLD
+// 331.50 / 500 on Saturday 2026-11-28) and the mid lands far from any real trade. Sweep of all 205 tokens that
+// morning: 125 at or under 5%, 80 over it (up to 25,614%). Under the limit the mid is at most half the spread
+// (2.5%) from the bid or the ask.
+export const MAX_SPREAD_PCT = 5;
+
+export const WIDE_SPREAD_NOTE = `Robinhood's bid/ask spread is wider than ${MAX_SPREAD_PCT}% (usually outside US market hours), so there is no reliable price and no premium right now.`;
+
+export type TokenReference = { bid: number; ask: number; spreadPct: number; price: number | null };
+
+// Robinhood's price for one token: its own token bid/ask when given, else the stock's times the multiplier.
+// `price` is the midpoint, or null when the spread is too wide to trust (then there is no premium either).
+export function tokenReference(q: Quote, multiplier: number): TokenReference {
+  const bid = q.tokenBid ?? q.bid * multiplier;
+  const ask = q.tokenAsk ?? q.ask * multiplier;
+  const spreadPct = (ask / bid - 1) * 100;
+  return { bid, ask, spreadPct, price: spreadPct <= MAX_SPREAD_PCT ? (bid + ask) / 2 : null };
+}
+
 function listOfQuotes(body: unknown): unknown[] {
   const v = body && typeof body === "object" ? (body as Record<string, unknown>).quotes : undefined;
   return Array.isArray(v) ? v : [];

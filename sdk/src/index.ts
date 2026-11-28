@@ -62,7 +62,9 @@ export type Asset = {
   pendingMultiplier: number | null; pendingMultiplierAt: string | null; status: string | null; tradingCapabilities: unknown;
 };
 export type Price = {
-  symbol: string; name: string; address: string | null; multiplier: number; tokenPrice: number;
+  symbol: string; name: string; address: string | null; multiplier: number;
+  /** null when Robinhood's bid/ask spread is wider than 5% (outside US market hours); priceNote says why. */
+  tokenPrice: number | null; spreadPct: number; priceNote?: string;
   token: { bid: number; ask: number };
   stock: { bid: number; ask: number; mid: number; dailyHigh: number | null; dailyLow: number | null; dailyVolume: number | null };
   mintBurnUsdVolume: number | null; isTradingHalt: boolean; generatedAt: string | null;
@@ -71,6 +73,7 @@ export type Pool = { address: string; fee: number; feePct: number; dexPrice: num
 export type Stats = {
   symbol: string; name: string | null; address: string | null; supply: number | null; marketCapUsd?: number | null;
   tokenPrice: number | null; dexPrice: number | null; premiumPct: number | null; liquidityUsd: number | null;
+  spreadPct?: number | null; priceNote?: string;
   pools?: Pool[]; live?: boolean; updatedAt?: string;
 };
 export type StatsList = { count: number; updatedAt: string | null; tokens: Stats[] };
@@ -79,6 +82,7 @@ export type History = { symbol: string; interval: string; days: number; count: n
 export type Quote = {
   symbol: string; side: "buy" | "sell"; amountIn: string; amountOut: string; tokenIn: string; tokenOut: string;
   price: number; pool: string; feePct: number; priceImpactPct: number | null; vsTokenPricePct: number | null; tokenPrice: number | null;
+  priceNote?: string;
 };
 export type UnsignedTx = { to: string; data: string; value: "0"; description: string };
 export type TradeBuild = { quote: Quote; recipient: string; slippageBps: number; amountOutMinimum: string; deadline: number; chainId: number; transactions: UnsignedTx[] };

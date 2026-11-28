@@ -5,7 +5,7 @@ import { ERC20, USDG, USDG_DECIMALS, bestQuote, buildSwap, readTokenFacts } from
 import { ApiError, json } from "./http.ts";
 import { checkSymbol } from "./market.ts";
 import type { Chain } from "./chain.ts";
-import type { Asset, Robinhood } from "./robinhood.ts";
+import { WIDE_SPREAD_NOTE, tokenReference, type Asset, type Robinhood } from "./robinhood.ts";
 import { storedStats, type D1Like } from "./store.ts";
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -20,14 +20,16 @@ export async function tokenOf(rh: Robinhood, rawSymbol: string): Promise<Asset &
   return asset as Asset & { address: string };
 }
 
-// Robinhood's token mid (bid/ask already times the multiplier), or null when no quote is available right now.
-async function tokenMid(rh: Robinhood, asset: Asset): Promise<number | null> {
+// Robinhood's token mid, or null when no quote is available or its spread is too wide to trust (tokenReference).
+// A null mid also means pools are sanity-checked and valued at their own price instead of a made-up one.
+async function robinhoodPrice(rh: Robinhood, asset: Asset): Promise<{ mid: number | null; spreadPct: number | null }> {
   const q = await rh.quote(asset.symbol).catch(() => null);
-  if (!q) return null;
-  const bid = q.tokenBid ?? q.bid * asset.multiplier;
-  const ask = q.tokenAsk ?? q.ask * asset.multiplier;
-  return (bid + ask) / 2;
+  if (!q) return { mid: null, spreadPct: null };
+  const ref = tokenReference(q, asset.multiplier);
+  return { mid: ref.price, spreadPct: round(ref.spreadPct, 2) };
 }
+
+const wideNote = (r: { mid: number | null; spreadPct: number | null }) => (r.mid === null && r.spreadPct !== null ? { priceNote: WIDE_SPREAD_NOTE } : {});
 
 // Live stats; when the chain cannot be read, the collector's last numbers from D1 (marked stale) instead of an error.
 export async function getStats(rh: Robinhood, chain: Chain, rawSymbol: string, db?: D1Like): Promise<Response> {
@@ -46,7 +48,8 @@ export async function getStats(rh: Robinhood, chain: Chain, rawSymbol: string, d
 // The numbers behind /v1/stats/{symbol}; the collector stores the same shape for every token.
 export async function statsFor(rh: Robinhood, chain: Chain, asset: Asset & { address: string }) {
   // Robinhood first: its price checks every pool price and values pool depth.
-  const mid = await tokenMid(rh, asset);
+  const ref = await robinhoodPrice(rh, asset);
+  const mid = ref.mid;
   const facts = await readTokenFacts(chain, asset.address, mid);
   const main = facts.pools.find((p) => p.dexPrice !== null) ?? null;
   return {
@@ -60,6 +63,8 @@ export async function statsFor(rh: Robinhood, chain: Chain, asset: Asset & { add
     dexPrice: main ? round(main.dexPrice!, 6) : null, // the deepest Uniswap pool's price
     // How far the DEX trades from Robinhood's price: positive means the token costs more on chain.
     premiumPct: main && mid !== null ? pct(main.dexPrice!, mid) : null,
+    spreadPct: ref.spreadPct, // Robinhood's bid/ask spread; over MAX_SPREAD_PCT there is no tokenPrice
+    ...wideNote(ref),
     liquidityUsd: round(facts.pools.reduce((s, p) => s + (p.liquidityUsd ?? 0), 0), 2),
     pools: facts.pools.map((p) => ({ ...p, dexPrice: p.dexPrice !== null ? round(p.dexPrice, 6) : null, liquidityUsd: p.liquidityUsd !== null ? round(p.liquidityUsd, 2) : null })),
     multiplier: asset.multiplier,
@@ -83,7 +88,8 @@ async function quoteFor(rh: Robinhood, chain: Chain, input: { symbol?: unknown; 
   const t = parseTrade(input);
   const asset = await tokenOf(rh, t.symbol);
   // Robinhood first: its price checks every pool price and values pool depth.
-  const mid = await tokenMid(rh, asset);
+  const ref = await robinhoodPrice(rh, asset);
+  const mid = ref.mid;
   const facts = await readTokenFacts(chain, asset.address, mid);
   const live = facts.pools.filter((p) => p.dexPrice !== null);
   if (live.length === 0) throw new ApiError(404, "no_pool", `${asset.symbol} has no Uniswap pool with USDG yet.`);
@@ -118,6 +124,7 @@ async function quoteFor(rh: Robinhood, chain: Chain, input: { symbol?: unknown; 
       priceImpactPct: pool.dexPrice ? round(Math.abs(pct(price, pool.dexPrice)), 4) : null,
       vsTokenPricePct: mid !== null ? pct(price, mid) : null,
       tokenPrice: mid !== null ? round(mid, 6) : null,
+      ...wideNote(ref),
     },
   };
 }
@@ -179,7 +186,8 @@ export async function getPortfolio(rh: Robinhood, chain: Chain, rawAddress: stri
   const holdings = await Promise.all(
     held.map(async ({ asset, raw }) => {
       const balance = Number(formatUnits(raw, 18));
-      const price = await tokenMid(rh, asset);
+      const ref = await robinhoodPrice(rh, asset);
+      const price = ref.mid;
       return {
         symbol: asset.symbol,
         name: asset.name,
@@ -187,6 +195,7 @@ export async function getPortfolio(rh: Robinhood, chain: Chain, rawAddress: stri
         balance,
         price: price !== null ? round(price, 6) : null,
         valueUsd: price !== null ? round(balance * price, 2) : null,
+        ...wideNote(ref),
       };
     }),
   );

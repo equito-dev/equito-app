@@ -45,9 +45,9 @@ Equito answers questions about stock tokens on Robinhood Chain (chain id 4663): 
 
 ## Reading the numbers
 
-- `tokenPrice`: Robinhood's price for one token (already times the multiplier).
+- `tokenPrice`: Robinhood's price for one token (already times the multiplier). `null` when Robinhood's bid/ask spread is wider than 5% (`spreadPct`, usually outside US market hours); `priceNote` then says so. Do not invent a price in that case: say the market is closed and use `dexPrice`.
 - `dexPrice`: the deepest Uniswap v3 USDG pool.
-- `premiumPct`: `dexPrice` against `tokenPrice` in percent. Positive means the token costs more on chain. Outside US market hours the two drift apart.
+- `premiumPct`: `dexPrice` against `tokenPrice` in percent. Positive means the token costs more on chain. `null` whenever `tokenPrice` is `null`.
 - `liquidityUsd`: every USDG pool of the token, both sides.
 - Lists, candles and launches come from a collector that reads the chain about once an hour; each answer says when.
 

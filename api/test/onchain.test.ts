@@ -52,7 +52,9 @@ function answer(to: string, data: `0x${string}`): `0x${string}` | null {
   throw new Error("unexpected call " + fn);
 }
 
-function fakeFetch() {
+const TIGHT = { tokenSymbol: "NVDA", bid: "151", ask: "152", tokenBid: "151", tokenAsk: "152" };
+
+function fakeFetch(nvdaQuote: Record<string, string> = TIGHT) {
   const rpcBatches: number[] = [];
   const f = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -63,7 +65,7 @@ function fakeFetch() {
           { tokenSymbol: "TSLA", tokenName: "Tesla", deployments: [{ contractAddress: "0x322F0929c4625eD5bAd873c95208D54E1c003b2d", chainId: 4663 }], currentMultiplier: 1 },
         ] });
       }
-      if (url.endsWith("/prices/NVDA")) return Response.json({ quotes: [{ tokenSymbol: "NVDA", bid: "151", ask: "152", tokenBid: "151", tokenAsk: "152" }] });
+      if (url.endsWith("/prices/NVDA")) return Response.json({ quotes: [nvdaQuote] });
       if (url.endsWith("/corporate-actions")) return Response.json({ corpActions: [{ id: "0x01", tokenSymbol: "NVDA", type: "CORPORATE_ACTION_TYPE_STOCK_SPLIT", status: "CORPORATE_ACTION_STATUS_IN_PROGRESS", processDate: { year: 2026, month: 12, day: 1 }, deployments: [{ contractAddress: NVDA, chainId: 4663 }] }, { id: "0x02", tokenSymbol: "AAPL", type: "CORPORATE_ACTION_TYPE_CASH_DIVIDEND" }] });
       return new Response("nf", { status: 404 });
     }
@@ -107,6 +109,27 @@ test("GET /v1/stats gives the DEX price, the premium over Robinhood's price, poo
   assert.equal(b.pools[1].dexPrice, null);
   assert.equal(b.liquidityUsd, 30150); // 15,000 USDG + 100 NVDA at Robinhood's 151.5
   assert.deepEqual(rpcBatches, [6, 10]); // two round trips
+});
+
+// Outside market hours (real GLD on 2026-11-28: 331.50 / 500): no Robinhood price, so no premium and no market cap,
+// and the pool is valued at its own price instead of the made-up midpoint.
+test("a wide Robinhood spread gives stats and quotes no token price, no premium, and depth at the DEX price", async () => {
+  const { f } = fakeFetch({ tokenSymbol: "NVDA", bid: "120", ask: "190", tokenBid: "120", tokenAsk: "190" });
+  const s = (await (await app(f)(get("/v1/stats/NVDA"), env)).json()) as any;
+  assert.equal(s.tokenPrice, null);
+  assert.equal(s.premiumPct, null);
+  assert.equal(s.marketCapUsd, null);
+  assert.equal(s.dexPrice, 152);
+  assert.equal(s.spreadPct, 58.33);
+  assert.match(s.priceNote, /spread/);
+  assert.equal(s.liquidityUsd, 30200); // 15,000 USDG + 100 NVDA at the pool's 152, not at the 155 midpoint
+  const q = (await (await app(f)(get("/v1/quote?symbol=NVDA&side=buy&amount=100"), env)).json()) as any;
+  assert.equal(q.price, 152.5); // the real quote still works
+  assert.equal(q.vsTokenPricePct, null);
+  assert.equal(q.tokenPrice, null);
+  const tight = (await (await app(fakeFetch().f)(get("/v1/stats/NVDA"), env)).json()) as any;
+  assert.equal(tight.priceNote, undefined);
+  assert.equal(tight.spreadPct, 0.66);
 });
 
 test("GET /v1/quote buys and sells through the best pool and reports impact and premium", async () => {
