@@ -17,3 +17,6 @@ site/flow-src/
 
 # Brand originals from Google Flow (local until the owner picks)
 brand/
+
+# Database backups taken before data repairs
+backups/
